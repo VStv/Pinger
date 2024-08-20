@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Smart Pinger</title>
+</head>
+<body onload="onload_alarms()">
+    <div id="header">
+        <h1>Smart Pinger 0.0</h1>
+    </div>
+    <div class="flex-container">
+        <div class="menu">
+            <ul>
+                <li><a href="index.html" title="інтерфейси" id="ifaces">Interfaces</a></li>
+                <li><a href="alarms.html" title="сигналізація" id="alarms">Alarms</a></li>
+                <li><a href="ping.html" title="тестування" id="ping">Ping</a></li>
+        </ul>
+        </div>
+        <div class="main">
+            <br>
+            <h2>Alarms</h2>
+            <br>
+            <table>
+                <tr>
+                    <th>Alarm  cond.</th>
+                    <td><input class="ip_t" name="unrepl" type="number" min="1" max="100"> unreplied</td>
+                </tr>
+                <tr>
+                    <th>E-mail</th>
+                    <td><input class="wifi_t" name="email" type="text"></td>
+                </tr>
+                <tr>
+                    <th>Telegram</th>
+                    <td><input class="wifi_t" name="telega" type="text"></td>
+                </tr>
+            </table>
+            <table>
+                <tr>
+                    <th>LED signals</th>
+                    <td style="width: 60px;">red <input type="checkbox" name="red"></td>
+                    <td style="width: 60px;">blue <input type="checkbox" name="blue"></td>
+                    <td style="width: 60px;">green <input type="checkbox" name="green"></td>
+                </tr>
+            </table>
+            <br>
+            <input class="submit_b" type="button" onclick="submit_alarm()" value="Save & Applay"></input>
+            <br>
+            <p id="demo3"></p> 
+            <p id="demo4"></p> 
+            <br>
+        </div>
+    </div>
+    <div id="footer">
+        <p>dis_stv@ukr.net</p> 
+    </div>
+</body>
+</html>
+
+<script src="myScript.js"></script>

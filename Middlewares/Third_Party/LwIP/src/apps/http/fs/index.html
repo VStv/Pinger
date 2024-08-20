@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Smart Pinger</title>
+</head>
+
+<body onload="onload()">
+    <div id="header">
+        <h1>Smart Pinger 0.0</h1>
+    </div>
+    <div class="flex-container">
+        <div class="menu">
+            <ul>
+                <li><a href="index.html" title="інтерфейси" id="ifaces">Interfaces</a></li>
+                <li><a href="alarms.html" title="сигналізація" id="alarms">Alarms</a></li>
+                <li><a href="ping.html" title="тестування" id="ping">Ping</a></li>
+            </ul>
+        </div>
+        <div class="main">
+            <br>
+            <h2>Interfaces</h2>
+            <br>
+            <table>
+                <caption>Device ethernet settings</caption>
+                <tr>
+                    <th>IP address assignment</th>
+                    <td>
+                        <input type="radio" name="ip_assign" value="static_on" onclick="set_static()">Static
+                    </td>
+                    <td>
+                        <input type="radio" name="ip_assign" value="dhcp_on"  onclick="set_dhcp()">DHCP
+                    </td>
+                </tr>
+            </table>
+            <br>
+            <table id="stat_ip">
+                <tr> 
+                    <th>IP address</th> 
+                    <td><input class="ip_t" id="ipa1" type="number" value="192" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipa2" type="number" value="168" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipa3" type="number" value="10" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipa4" type="number" value="10" min="0" max="255"></td> 
+                </tr> 
+                <tr> 
+                    <th>Subnet mask</th> 
+                    <td><input class="ip_t" id="ipm1" type="number" value="255" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipm2" type="number" value="255" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipm3" type="number" value="255" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipm4" type="number" value="0" min="0" max="255"></td> 
+                </tr> 
+                <tr> 
+                    <th>Gateway</th> 
+                    <td><input class="ip_t" id="ipg1" type="number" value="192" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipg2" type="number" value="168" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipg3" type="number" value="10" min="0" max="255"></td> 
+                    <td><input class="ip_t" id="ipg4" type="number" value="1" min="0" max="255"></td> 
+                </tr>
+            </table>
+            <br>
+            <table>
+                <caption>Wi-Fi settings</caption>
+                <tr>
+                    <th>SSID</th>
+                    <td><input class="wifi_t" id="ssid" type="text"></td>
+                </tr>
+                <tr>
+                    <th>Password</th>
+                    <td><input class="wifi_t" id="psw" type="password"></td>
+                </tr>
+            </table>
+            <br>
+            <input class="submit_b" type="button" onclick="submit_netsettings()" value="Save & Applay"></input>
+            <br>
+            <p id="demo1"></p> 
+            <p id="demo2"></p> 
+            <br>
+        </div>    
+    </div>
+    <div id="footer">
+        <address>dis_stv@ukr.net</address> 
+    </div>
+
+
+</body>
+</html>
+
+<script src="myScript.js"></script>
