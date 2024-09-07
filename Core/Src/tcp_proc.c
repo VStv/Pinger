@@ -14,6 +14,10 @@ osThreadId_t 		TcpClientTaskHandle = NULL;
 
 osSemaphoreId_t 	sid_Connected = NULL;
 
+#ifdef DEBUG_TCP_PROC
+uint32_t time1, wait_time;
+#endif
+
 
 
 extern char 				*pp;
@@ -32,7 +36,9 @@ static void TcpConn_thread 	(
 	char *rdata, *wdata;
 	uint16_t len;
 
-	PRINTF ("accepted new connection %c\r\n", pTcpConn->number);
+#ifdef DEBUG_TCP_PROC
+	PRINTF ("TcpConnThread: accepted new connection %c\r\n", pTcpConn->number);
+#endif
 	netconn_set_recvtimeout (pTcpConn->conn, 1000);
 	// receive the data from the client
 	if (netconn_recv (pTcpConn->conn, &buf) == ERR_OK)
@@ -47,16 +53,22 @@ static void TcpConn_thread 	(
 			netconn_close (pTcpConn->conn);
 			netconn_delete (pTcpConn->conn);
 			pTcpConn->conn = NULL;
-			PRINTF ("Write error. Connection %c closed\r\n\n", pTcpConn->number);
+#ifdef DEBUG_TCP_PROC
+			PRINTF ("TcpConnThread: Write error. Connection %c closed\r\n\n", pTcpConn->number);
+#endif
 			osThreadExit ();
 		}
 		vPortFree (wdata);
 	}
 	else
 	{
-		PRINTF ("Receive error\r\n\n");
+#ifdef DEBUG_TCP_PROC
+		PRINTF ("TcpConnThread: Receive error\r\n\n");
+#endif
 	}
-	PRINTF ("Connection %c closed\r\n\n", pTcpConn->number);
+#ifdef DEBUG_TCP_PROC
+	PRINTF ("TcpConnThread: Connection %c closed\r\n\n", pTcpConn->number);
+#endif
 	netbuf_delete (buf);
 	netconn_close (pTcpConn->conn);
 	netconn_delete (pTcpConn->conn);
@@ -76,7 +88,9 @@ static void TcpServer_thread 	(
     conn = netconn_new(NETCONN_TCP);
 	if (conn == NULL)
 	{
-		PRINTF("Can't create TCP connection\r\n");
+#ifdef DEBUG_TCP_PROC
+		PRINTF("TcpServerThread: Can't create TCP connection\r\n");
+#endif
 		goto exit1;
 	}
 	// Bind connection to the port 80
@@ -85,7 +99,9 @@ static void TcpServer_thread 	(
 	{
 		err2 = netconn_delete(conn);
 		conn = NULL;
-		PRINTF("Can't bind TCP connection %p\r\n", conn);
+#ifdef DEBUG_TCP_PROC
+		PRINTF("TcpServerThread: Can't bind TCP connection %p\r\n", conn);
+#endif
 		goto exit1;
 	}
 	// Tell connection to go into listening mode
@@ -101,9 +117,11 @@ static void TcpServer_thread 	(
 			{
 				if (pTcpConn->conn == NULL)
 				{
-//					PRINTF("Connected with remote IP: 192.168.10.%d\r\n", (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>24));
-					PRINTF("Connected with remote port %d\r\n", newconn->pcb.tcp->remote_port);
-					PRINTF("Connection time %ld\r\n", sys_now());
+#ifdef DEBUG_TCP_PROC
+//					PRINTF("TcpServerThread: Connected with remote IP: 192.168.10.%d\r\n", (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>24));
+					PRINTF("TcpServerThread: Connected with remote port %d\r\n", newconn->pcb.tcp->remote_port);
+					PRINTF("TcpServerThread: Connection time %ld\r\n", sys_now());
+#endif
 //					HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, 1);
 					pTcpConn->conn = newconn;
 					char nameThread[] = {'T','C','P','C','o','n','n','T','a','s','k', pTcpConn->number,'\0'};
@@ -120,7 +138,9 @@ static void TcpServer_thread 	(
 			}
 			if (newconn != NULL)
 			{
-				PRINTF("No free conn-structures\r\n");
+#ifdef DEBUG_TCP_PROC
+				PRINTF("TcpServerThread: No free conn-structures\r\n");
+#endif
 				netconn_close(newconn);
 				netconn_delete(newconn);
 			}
@@ -136,10 +156,14 @@ exit1:
 }
 
 
-void my_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
+void my_callback (struct netconn *conn, enum netconn_evt evt, u16_t len)
 {
 	(void) len;
 
+#ifdef DEBUG_TCP_PROC
+	wait_time = (sys_now() - time1 == 0) ? 1: sys_now() - time1;
+	PRINTF ("my_callback: Wait for connection %ld ms\r\n", wait_time);
+#endif
 	switch (evt)
 	{
 		case NETCONN_EVT_SENDPLUS:
@@ -183,12 +207,12 @@ osThreadId_t StartTcpServer (void)
 static void TcpClient_thread (void *arg)
 {
 	struct netconn *conn = NULL;
-	err_t err;
-	uint16_t src_port;
-	ip_addr_t dest_addr;
-	uint16_t dst_port = SMTP_SERVER_PORT;
 	osStatus_t val;
-	uint8_t serv_addr[4] = {192, 168, 10, 10};
+	err_t err;
+	uint8_t serv_addr[4] = {192, 168, 10, 11};
+	ip_addr_t dest_addr;
+	uint16_t src_port;
+	uint16_t dst_port = SMTP_SERVER_PORT;
 
 	sid_Connected = osSemaphoreNew(1, 0, NULL);
 	vQueueAddToRegistry (sid_Connected, "sid_Connected");
@@ -196,34 +220,46 @@ static void TcpClient_thread (void *arg)
 	conn = netconn_new_with_callback (NETCONN_TCP, my_callback);
 	if (conn == NULL)
 	{
-		PRINTF ("Can't create connection");
+#ifdef DEBUG_TCP_PROC
+		PRINTF ("TcpClientThread: Can't create connection");
+#endif
 		goto exit2;
 	}
 	// Bind connection to random local port
 	src_port = (uint16_t) SysTick->VAL;
-	err = netconn_bind(conn, IP_ADDR_ANY, src_port);
+	err = netconn_bind (conn, IP_ADDR_ANY, src_port);
 	if (err != ERR_OK)
 	{
-		PRINTF ("Can't bind TCP connection, err = %d", err);
-		err = netconn_delete(conn);
+#ifdef DEBUG_TCP_PROC
+		PRINTF ("TcpClientThread: Can't bind TCP connection, err = %d", err);
+#endif
+		err = netconn_delete (conn);
 		goto exit2;
 	}
 	// Connect to remote IP-address
 	IP_ADDR4 (&dest_addr, serv_addr[0], serv_addr[1], serv_addr[2], serv_addr[3]);
-	PRINTF ("Try to connect to port %d\r\n", dst_port);
+#ifdef DEBUG_TCP_PROC
+	PRINTF ("TcpClientThread: Try to connect to port %d\r\n", dst_port);
+	time1 = sys_now ();
+#endif
 	// connect to remote server at port
-	netconn_set_nonblocking(conn, 1);
+	netconn_set_nonblocking (conn, 1);
 	err = netconn_connect (conn, &dest_addr, dst_port);
-	val = osSemaphoreAcquire(sid_Connected, 1000U);
+	val = osSemaphoreAcquire (sid_Connected, 1000U);
 	if (val != osOK)
 	{
-		PRINTF ("Connection dropped\r\n");
-		err = netconn_delete(conn);
+#ifdef DEBUG_TCP_PROC
+		PRINTF ("TcpClientThread: Connection dropped\r\n");
+#endif
+		netconn_set_nonblocking (conn, 0);
+		err = netconn_delete (conn);
 		conn = NULL;
 		goto exit2;
 	}
-	netconn_set_nonblocking(conn, 0);
-
+#ifdef DEBUG_TCP_PROC
+	PRINTF ("TcpClientThread: Connected to mail server\r\n");
+#endif
+	netconn_set_nonblocking (conn, 0);
 
 //	SmtpProcess ();
 	for (uint8_t k = 0; k < 3; k++)
@@ -234,13 +270,14 @@ static void TcpClient_thread (void *arg)
 		osDelay (500);
 	}
 
-
-	err = netconn_close(conn);
-	err = netconn_delete(conn);
+	err = netconn_close (conn);
+	err = netconn_delete (conn);
 	conn = NULL;
-	PRINTF ("Connection closed\r\n");
 
 exit2:
+#ifdef DEBUG_TCP_PROC
+	PRINTF ("TcpClientThread: Connection closed\r\n");
+#endif
 //	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
 	if (sid_Connected)
 	{
@@ -248,7 +285,7 @@ exit2:
 		sid_Connected = NULL;
 	}
 	TcpClientTaskHandle = NULL;
-	osThreadExit();
+	osThreadExit ();
 }
 
 
@@ -259,5 +296,5 @@ osThreadId_t StartTcpClient (void)
         .stack_size = 3*512,
         .priority = (osPriority_t) osPriorityNormal,
     };
-    return osThreadNew(TcpClient_thread, NULL, &tcpTask_attributes);
+    return osThreadNew (TcpClient_thread, NULL, &tcpTask_attributes);
 }

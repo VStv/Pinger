@@ -100,7 +100,9 @@ static void Ping_thread (
 	conn = netconn_new_with_proto_and_callback(NETCONN_RAW, IP_PROTO_ICMP, NULL);
 	if (conn == NULL)
 	{
-		PRINTF("Can't create connection\r\n");
+#ifdef DEBUG_PING_PROC
+		PRINTF("PingThread: Can't create connection\r\n");
+#endif
 		goto exit1;
 	}
 
@@ -110,14 +112,18 @@ static void Ping_thread (
 	ping_size = sizeof(struct icmp_echo_hdr) + PING_DATA_SIZE;
 	if (ping_size > 0xffff)
 	{
-		PRINTF("Ping size is too big");
+#ifdef DEBUG_PING_PROC
+		PRINTF("PingThread: Ping size is too big");
+#endif
 		netconn_delete(conn);
 		goto exit1;
 	}
 	iecho = (struct icmp_echo_hdr *)mem_malloc((mem_size_t)ping_size);
 	if (!iecho)
 	{
-		PRINTF("Can't allocate memory");
+#ifdef DEBUG_PING_PROC
+		PRINTF("PingThread: Can't allocate memory");
+#endif
 		netconn_delete(conn);
 		goto exit1;
 	}
@@ -150,7 +156,9 @@ static void Ping_thread (
 			err = AnalyseReply ((void *)iecho, (void *) smsg);
 			if (err == ERR_OK)
 			{
-				PRINTF ("Received reply for %ld ms\r\n", reply_time);
+#ifdef DEBUG_PING_PROC
+				PRINTF ("PingThread: Received reply for %ld ms\r\n", reply_time);
+#endif
 				ping_res.status = 0;
 				ping_res.cur_time = reply_time;
 				if (ping_res.ping_cnt == 0)
@@ -170,7 +178,9 @@ static void Ping_thread (
 			}
 			else
 			{
-				PRINTF ("Reply has error %d\r\n", err);
+#ifdef DEBUG_PING_PROC
+				PRINTF ("PingThread: Reply has error %d\r\n", err);
+#endif
 				ping_res.status = err;
 				ping_res.lost++;
 				ping_res.alarm_cnt++;
@@ -180,7 +190,9 @@ static void Ping_thread (
 		case ERR_TIMEOUT:
 		{
 			// Send request to server again
-			PRINTF ("Timeout %ld ms\r\n", (sys_now() - ping_time1));
+#ifdef DEBUG_PING_PROC
+			PRINTF ("PingThread: Timeout %ld ms\r\n", (sys_now() - ping_time1));
+#endif
 			ping_res.status = 5;
 			ping_res.lost++;
 			ping_res.alarm_cnt++;
@@ -189,7 +201,9 @@ static void Ping_thread (
 		default:
 		{
 			// close, delete conn, terminate thread
-			PRINTF ("Receiving error %d\r\n", err);
+#ifdef DEBUG_PING_PROC
+			PRINTF ("PingThread: Receiving error %d\r\n", err);
+#endif
 			ping_res.status = 6;
 			ping_res.lost++;
 			ping_res.alarm_cnt++;
@@ -201,7 +215,9 @@ static void Ping_thread (
 	netbuf_delete (txBuf);
 	netbuf_delete (rxBuf);
 	netconn_delete(conn);
-	PRINTF ("Connection removed\r\n");
+#ifdef DEBUG_PING_PROC
+	PRINTF ("PingThread: Connection removed\r\n");
+#endif
 
 	// return data to Ping_res (message)
 	ping_res.ping_cnt++;
@@ -275,13 +291,17 @@ static void PingLoop_thread (
 	{
 		ticks = sys_now();
 		PingHandle = StartOnePing ((void *)&(ping_data.ip_host));
-		PRINTF("Ping %d\r\n\n", Ping_res.ping_cnt);
+#ifdef DEBUG_PING_PROC
+		PRINTF("PingLoopThread: Ping %d\r\n\n", Ping_res.ping_cnt);
+#endif
 
 		// get semaphore
 		err = osSemaphoreAcquire (sid_PingReady, 2*PING_DELAY);
 		if (err != osOK)
 		{
-			PRINTF("Ping error %d\r\n\n", err);
+#ifdef DEBUG_PING_PROC
+			PRINTF("PingLoopThread: Ping error %d\r\n\n", err);
+#endif
 			// return status = 10 to Ping_res (message)
 			ping_res.status = 10;
 			osMessageQueuePut(mid_PingRes, &ping_res, 0U, 0U);
@@ -289,7 +309,9 @@ static void PingLoop_thread (
 		}
 		osDelayUntil(ticks + PING_DELAY);
 	}
-	PRINTF("Ping task deleted\r\n\n");
+#ifdef DEBUG_PING_PROC
+	PRINTF("PingLoopThread: Ping task deleted\r\n\n");
+#endif
 	osSemaphoreDelete (sid_PingReady);
 
 	osMessageQueueDelete (mid_PingRes);
@@ -315,7 +337,9 @@ void StopPing (void)
 {
 	if (PingLoopHandle != NULL)
 	{
-		PRINTF ("Ping task terminated\r\n\n");
+#ifdef DEBUG_PING_PROC
+		PRINTF ("StopPing: Ping task terminated\r\n\n");
+#endif
 		osSemaphoreDelete (sid_PingReady);
 		osThreadTerminate (PingHandle);
 		osThreadTerminate (PingLoopHandle);
