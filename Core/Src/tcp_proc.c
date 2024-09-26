@@ -7,10 +7,16 @@
 
 #include "tcp_proc.h"
 
-
+osThreadId_t 		TcpServerTaskHandle = NULL;
 osThreadId_t 		TcpConnHandle[TCP_CONNECTION_MAX] = {NULL};
-TcpConnStruct_t 	TcpConnStruct[TCP_CONNECTION_MAX];
+uint32_t			TcpServerApp;
+
+
+serv_struct_t		TcpServStruct;
+conn_struct_t 		TcpConnStruct[TCP_CONNECTION_MAX];
+
 osThreadId_t 		TcpClientTaskHandle = NULL;
+osThreadId_t 		AppClientTaskHandle = NULL;
 
 osSemaphoreId_t 	sid_Connected = NULL;
 
@@ -22,18 +28,16 @@ uint32_t time1, wait_time;
 
 extern char 				*pp;
 extern osMessageQueueId_t 	mid_PingData;
-extern osMessageQueueId_t 	mid_PingRes;
 
 
-
-
+//---------------------------------------------------------------------------------------
 static void TcpConn_thread 	(
 							void *arg
 							)
 {
-	TcpConnStruct_t *pTcpConn = (TcpConnStruct_t*)arg;
-	struct netbuf *buf;
-	char *rdata, *wdata;
+	conn_struct_t *pTcpConn = (conn_struct_t *)arg;
+	struct netbuf *buf = NULL;
+	char *rdata, *wdata = NULL;
 	uint16_t len;
 
 #ifdef DEBUG_TCP_PROC
@@ -44,21 +48,14 @@ static void TcpConn_thread 	(
 	if (netconn_recv (pTcpConn->conn, &buf) == ERR_OK)
 	{
 		netbuf_data (buf, (void**)&rdata, &len);
-		wdata = HttpProcess (rdata);
+		wdata = TcpServStruct.application (rdata);
 		// send the message back to the client
 		if (netconn_write (pTcpConn->conn, (const unsigned char*)wdata, (size_t)strlen (wdata), NETCONN_COPY) != ERR_OK)
 		{
-			vPortFree (wdata);
-			netbuf_delete (buf);
-			netconn_close (pTcpConn->conn);
-			netconn_delete (pTcpConn->conn);
-			pTcpConn->conn = NULL;
 #ifdef DEBUG_TCP_PROC
-			PRINTF ("TcpConnThread: Write error. Connection %c closed\r\n\n", pTcpConn->number);
+			PRINTF ("TcpConnThread: Write error\r\n\n");
 #endif
-			osThreadExit ();
 		}
-		vPortFree (wdata);
 	}
 	else
 	{
@@ -66,24 +63,31 @@ static void TcpConn_thread 	(
 		PRINTF ("TcpConnThread: Receive error\r\n\n");
 #endif
 	}
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpConnThread: Connection %c closed\r\n\n", pTcpConn->number);
-#endif
-	netbuf_delete (buf);
+	if (wdata != NULL)
+	{
+		vPortFree (wdata);
+	}
+	if (buf != NULL)
+	{
+		netbuf_delete (buf);
+	}
 	netconn_close (pTcpConn->conn);
 	netconn_delete (pTcpConn->conn);
 	pTcpConn->conn = NULL;
+#ifdef DEBUG_TCP_PROC
+	PRINTF ("TcpConnThread: Connection %c closed\r\n\n", pTcpConn->number);
+#endif
 	osThreadExit ();
 }
 
 
-static void TcpServer_thread 	(
-								void *arg
-								)
+static void TcpServer_thread (void *arg)
 {
 	struct netconn *conn, *newconn;
 	err_t err2;
+	conn_struct_t *pTcpConn = TcpConnStruct;
 
+	sid_Connected = osSemaphoreNew (1, 0, NULL);
 	// Create a new connection identifier
     conn = netconn_new(NETCONN_TCP);
 	if (conn == NULL)
@@ -94,7 +98,7 @@ static void TcpServer_thread 	(
 		goto exit1;
 	}
 	// Bind connection to the port 80
-	err2 = netconn_bind(conn, IP_ADDR_ANY, 80);
+	err2 = netconn_bind (conn, IP_ADDR_ANY, TcpServStruct.local_port);
 	if (err2 != ERR_OK)
 	{
 		err2 = netconn_delete(conn);
@@ -112,17 +116,14 @@ static void TcpServer_thread 	(
 		// Grab & Process new connection
 		if (netconn_accept(conn, &newconn) == ERR_OK)
 		{
-			TcpConnStruct_t *pTcpConn = TcpConnStruct;
 			for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
 			{
-				if (pTcpConn->conn == NULL)
+				if (pTcpConn->conn == NULL)	//(pTcpServ->conn_data->conn == NULL)
 				{
 #ifdef DEBUG_TCP_PROC
-//					PRINTF("TcpServerThread: Connected with remote IP: 192.168.10.%d\r\n", (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>24));
-					PRINTF("TcpServerThread: Connected with remote port %d\r\n", newconn->pcb.tcp->remote_port);
+					PRINTF("TcpServerThread: Connected with remote host: %d.%d.%d.%d: %d\r\n", (uint8_t)(newconn->pcb.tcp->remote_ip.addr), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>8), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>16), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>24), newconn->pcb.tcp->remote_port);
 					PRINTF("TcpServerThread: Connection time %ld\r\n", sys_now());
 #endif
-//					HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, 1);
 					pTcpConn->conn = newconn;
 					char nameThread[] = {'T','C','P','C','o','n','n','T','a','s','k', pTcpConn->number,'\0'};
 					const osThreadAttr_t tcpConn_attributes = {
@@ -130,7 +131,7 @@ static void TcpServer_thread 	(
 						.priority = (osPriority_t) osPriorityNormal,
 						.stack_size = 512 * 4,
 					};
-					TcpConnHandle[i] = osThreadNew(TcpConn_thread, pTcpConn, &tcpConn_attributes);
+					TcpConnHandle[i] = osThreadNew (TcpConn_thread, (void *)pTcpConn, &tcpConn_attributes);
 					newconn = NULL;
 					break;
 				}
@@ -151,12 +152,52 @@ static void TcpServer_thread 	(
 		}
     }
 exit1:
-//	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, 0);
 	for(;;);
 }
 
 
-void my_callback (struct netconn *conn, enum netconn_evt evt, u16_t len)
+osThreadId_t StartTcpServer (
+							void *arg
+							)
+{
+	mid_PingData = osMessageQueueNew (1, sizeof(ping_struc_t), NULL);
+	vQueueAddToRegistry (mid_PingData, "mid_PingData");
+
+	uint32_t app = *(uint32_t *)arg;
+
+	switch (app)
+	{
+		case HTTP_PROT:
+			// Set local port
+			TcpServStruct.local_port = HTTP_SERVER_PORT;
+			TcpServStruct.application = HttpProcess;
+			break;
+
+		default:
+			break;
+	}
+	conn_struct_t *pTcpConn = TcpConnStruct;
+
+	for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
+	{
+		pTcpConn->number = '1'+i;
+		pTcpConn->conn = NULL;
+		pTcpConn++;
+	}
+    const osThreadAttr_t tcpTask_attributes = {
+        .name = "TcpServerTask",
+        .stack_size = 512 * 3,
+        .priority = (osPriority_t) osPriorityNormal,
+    	};
+    return osThreadNew(TcpServer_thread, NULL, &tcpTask_attributes);
+}
+
+
+// ---------------------------------------------------------------------------------------
+void my_callback	(
+					struct netconn *conn,
+					enum netconn_evt evt, u16_t len
+					)
 {
 	(void) len;
 
@@ -181,40 +222,36 @@ void my_callback (struct netconn *conn, enum netconn_evt evt, u16_t len)
 }
 
 
-osThreadId_t StartTcpServer (void)
+static void TcpClient_thread	(
+								void *arg
+								)
 {
-	TcpConnStruct_t *pTcpConn = TcpConnStruct;
-	mid_PingData = osMessageQueueNew (1, sizeof(ping_struc_t), NULL);
-	vQueueAddToRegistry (mid_PingData, "mid_PingData");
-//	mid_PingRes = osMessageQueueNew (2, sizeof(reply_struc_t), NULL);
-//	vQueueAddToRegistry (mid_PingRes, "mid_PingRes");
-
-	for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
-	{
-		pTcpConn->number = '1'+i;
-		pTcpConn->conn = NULL;
-		pTcpConn++;
-	}
-    const osThreadAttr_t tcpTask_attributes = {
-        .name = "TcpServerTask",
-        .stack_size = 512 * 3,
-        .priority = (osPriority_t) osPriorityNormal,
-    	};
-    return osThreadNew(TcpServer_thread, NULL, &tcpTask_attributes);
-}
-
-
-static void TcpClient_thread (void *arg)
-{
+	uint32_t app = *(uint32_t *)arg;
 	struct netconn *conn = NULL;
-	osStatus_t val;
-	err_t err;
-	uint8_t serv_addr[4] = {192, 168, 10, 11};
-	ip_addr_t dest_addr;
-	uint16_t src_port;
-	uint16_t dst_port = SMTP_SERVER_PORT;
+	osStatus_t 	val;
+	err_t 		err;
+	ip_addr_t 	dest_addr;
+	uint16_t 	src_port;
+	uint16_t 	dst_port;
 
-	sid_Connected = osSemaphoreNew(1, 0, NULL);
+	osThreadId_t 	(*pStartApp) (void *);
+	osSemaphoreId_t	sid_AppCplt = NULL;
+
+	switch (app)
+	{
+		case SMTP_PROT:
+			// Set remote IP-address & port
+			IP_ADDR4 (&dest_addr, SMTP_SERVER_ADDR0, SMTP_SERVER_ADDR1, SMTP_SERVER_ADDR2, SMTP_SERVER_ADDR3);
+			dst_port = SMTP_SERVER_PORT;
+			pStartApp = StartSmtpClient;
+			break;
+
+		default:
+			TcpClientTaskHandle = NULL;
+			osThreadExit ();
+	}
+
+	sid_Connected = osSemaphoreNew (1, 0, NULL);
 	vQueueAddToRegistry (sid_Connected, "sid_Connected");
 	// Create a new connection identifier
 	conn = netconn_new_with_callback (NETCONN_TCP, my_callback);
@@ -236,8 +273,6 @@ static void TcpClient_thread (void *arg)
 		err = netconn_delete (conn);
 		goto exit2;
 	}
-	// Connect to remote IP-address
-	IP_ADDR4 (&dest_addr, serv_addr[0], serv_addr[1], serv_addr[2], serv_addr[3]);
 #ifdef DEBUG_TCP_PROC
 	PRINTF ("TcpClientThread: Try to connect to port %d\r\n", dst_port);
 	time1 = sys_now ();
@@ -257,18 +292,20 @@ static void TcpClient_thread (void *arg)
 		goto exit2;
 	}
 #ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpClientThread: Connected to mail server\r\n");
+	PRINTF ("TcpClientThread: Connected to server\r\n");
 #endif
 	netconn_set_nonblocking (conn, 0);
 
-//	SmtpProcess ();
-	for (uint8_t k = 0; k < 3; k++)
-	{
-		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, 1);
-		osDelay (500);
-		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, 0);
-		osDelay (500);
-	}
+	// Start client application
+	sid_AppCplt = osSemaphoreNew (1, 0, NULL);
+	vQueueAddToRegistry (sid_AppCplt, "sid_AppCplt");
+
+	AppClientTaskHandle = pStartApp ((void *) &sid_AppCplt);
+	osSemaphoreAcquire (sid_AppCplt, osWaitForever);
+	osSemaphoreDelete (sid_AppCplt);
+	sid_AppCplt = NULL;
+	AppClientTaskHandle = NULL;
+	// delete client application and semaphores
 
 	err = netconn_close (conn);
 	err = netconn_delete (conn);
@@ -278,7 +315,6 @@ exit2:
 #ifdef DEBUG_TCP_PROC
 	PRINTF ("TcpClientThread: Connection closed\r\n");
 #endif
-//	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
 	if (sid_Connected)
 	{
 		osSemaphoreDelete (sid_Connected);
@@ -289,12 +325,15 @@ exit2:
 }
 
 
-osThreadId_t StartTcpClient (void)
+osThreadId_t StartTcpClient (
+							void *arg
+							)
 {
-    const osThreadAttr_t tcpTask_attributes = {
+	const osThreadAttr_t tcpTask_attributes = {
         .name = "TcpClientTask",
         .stack_size = 3*512,
         .priority = (osPriority_t) osPriorityNormal,
     };
-    return osThreadNew (TcpClient_thread, NULL, &tcpTask_attributes);
+    return osThreadNew (TcpClient_thread, arg, &tcpTask_attributes);
 }
+

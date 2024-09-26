@@ -19,8 +19,14 @@ extern uint8_t				alrm_led;
 extern reply_struc_t 		Ping_res;
 extern osThreadId_t 		PingLoopHandle;
 extern osMessageQueueId_t 	mid_PingData;
-//extern osMessageQueueId_t 	mid_PingRes;
-
+extern uint32_t				email_is_OK;
+extern char 				*pp;
+extern ip4_addr_t 			ipaddr;
+extern ip4_addr_t 			netmask;
+extern ip4_addr_t 			gw;
+extern uint8_t				static_ip;
+extern osThreadId_t 		TcpServerTaskHandle;
+extern uint32_t				TcpServerApp;
 
 const char 			*str_list[12] = {"ipa1=", "ipa2=", "ipa3=", "ipa4=",
 									"ipm1=", "ipm2=", "ipm3=", "ipm4=",
@@ -29,14 +35,17 @@ const char 			*led_list[3] = {"red=", "blue=", "green="};
 const char 			*str_list2[4] = {"hipa1=", "hipa2=", "hipa3=", "hipa4="};
 
 const char			PAGE_HEADER_200_OK[] = "HTTP/1.1 200 OK\r\n";
-//const char			PAGE_HEADER_SERVER[] = "Server: lwIP/2.1.2 (http://savannah.nongnu.org/projects/lwip)\r\n";
 const char			PAGE_HEADER_CONTENT_TEXT[] = "Content-type: text/html\r\n\r\n";
+//const char			DEFAULT_EMAIL[] = "192.168.0.2";
 
-extern char 		*pp;
-extern ip4_addr_t 	ipaddr;
-extern ip4_addr_t 	netmask;
-extern ip4_addr_t 	gw;
-extern uint8_t		static_ip;
+
+
+
+void RunHttpServer (void)
+{
+	TcpServerApp = HTTP_PROT;
+	TcpServerTaskHandle = StartTcpServer ((void *)&TcpServerApp);
+}
 
 
 static uint32_t ParseNetsetting	(
@@ -154,7 +163,18 @@ static uint32_t ParseAlarms	(
 		return 1;
 	p3 = p - 1;
 	if (p3 > p2)
+	{
 		memcpy (str1, p2, p3 - p2);
+		if (strchr (str1, '@') != NULL)
+		{
+			email_is_OK = 1;
+			memcpy (pAlarms->email, str1, 15);
+		}
+		else
+		{
+			email_is_OK = 0;
+		}
+	}
 
 	p2 = p + 7;
 	p = strstr (str, "red=");
@@ -175,7 +195,7 @@ static uint32_t ParseAlarms	(
 		led_state += ALARM_LED_GREEN;
 
 	*(pAlarms->unrepl) = unrepl_ping;
-	memcpy (pAlarms->email, str1, 15);
+
 	memcpy (pAlarms->telega, str2, 15);
 	*(pAlarms->led) = led_state;
 	return 0;
@@ -502,34 +522,34 @@ char *HttpProcess 	(
 		}
 		else
 		{
-			wbuf = pvPortMalloc(200);
+			wbuf = pvPortMalloc (200);
 			sprintf (wbuf, "%s%s", PAGE_HEADER_200_OK, PAGE_HEADER_CONTENT_TEXT);
 			strcat (wbuf, "state=ERROR");
 		}
 	}
-	else if (strncmp((char const *)data, "GET /getconfig", 14)==0)
+	else if (strncmp ((char const *)data, "GET /getconfig", 14) == 0)
 	{
-		wbuf = pvPortMalloc(200);
+		wbuf = pvPortMalloc (200);
 		ResponseToGetconfig (&ipSettings, wbuf);
 	}
-	else if (strncmp((char const *)data, "GET /getalarms", 14)==0)
+	else if (strncmp ((char const *)data, "GET /getalarms", 14) == 0)
 	{
-		wbuf = pvPortMalloc(200);
+		wbuf = pvPortMalloc (200);
 		ResponseToGetalarms (&Alarms_struc, wbuf);
 	}
-	else if (strncmp((char const *)data, "GET /getdata", 12)==0)
+	else if (strncmp ((char const *)data, "GET /getdata", 12) == 0)
 	{
 		// update Ping_res from message
 
-		wbuf = pvPortMalloc(200);
+		wbuf = pvPortMalloc (200);
 		ResponseToGetdata (&Ping_res, wbuf);
 	}
 	else
 	{
-		fs_open(&file, "/404.html");
-		wbuf = pvPortMalloc(file.len);
+		fs_open (&file, "/404.html");
+		wbuf = pvPortMalloc (file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
-		fs_close(&file);
+		fs_close (&file);
 	}
 	return wbuf;
 }

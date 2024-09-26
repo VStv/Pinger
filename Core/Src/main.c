@@ -62,7 +62,7 @@ const osThreadAttr_t defaultTask_attributes = {
 //set_struc_t 	IpSettings;
 
 osThreadId_t 	ConsoleTaskHandle = NULL;
-osThreadId_t 	TcpTaskHandle = NULL;
+//osThreadId_t 	TcpServerTaskHandle = NULL;
 osThreadId_t 	UartRxTaskHandle = NULL;
 osThreadId_t 	FlashTaskHandle = NULL;
 
@@ -375,7 +375,8 @@ void StartDefaultTask(void *argument)
 	  ConsoleTaskHandle = StartConsoleTask();
 	  UartRxTaskHandle = StartUartRxTask();
 	  FlashTaskHandle = StartFlashProcess();
-	  TcpTaskHandle = StartTcpServer();
+
+	  RunHttpServer();
 
 //	  osThreadExit();
   /* Infinite loop */

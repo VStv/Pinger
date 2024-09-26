@@ -45,15 +45,15 @@ void ConsoleFree (void)
 
 static void ConsoleTask (void * argument)
 {
-    mid_ConsoleData = osMessageQueueNew(8, sizeof(strng1), NULL);
-    vQueueAddToRegistry(mid_ConsoleData, "mid_ConsoleData");
-    sid_ConsoleUartReady = osSemaphoreNew(1, 0, NULL);
-    vQueueAddToRegistry(sid_ConsoleUartReady, "sid_ConsoleUartReady");
+    mid_ConsoleData = osMessageQueueNew (8, sizeof(strng1), NULL);
+    vQueueAddToRegistry (mid_ConsoleData, "mid_ConsoleData");
+    sid_ConsoleUartReady = osSemaphoreNew (1, 0, NULL);
+    vQueueAddToRegistry (sid_ConsoleUartReady, "sid_ConsoleUartReady");
     // Infinite loop
     for(;;)
     {
-        osMessageQueueGet(mid_ConsoleData, strng1, NULL, osWaitForever);
-        HAL_UART_Transmit_DMA(&huart3, (uint8_t *) strng1, strlen(strng1));
+        osMessageQueueGet (mid_ConsoleData, strng1, NULL, osWaitForever);
+        HAL_UART_Transmit_DMA (&huart3, (uint8_t *) strng1, strlen(strng1));
         osSemaphoreAcquire (sid_ConsoleUartReady, osWaitForever);
     }
 }

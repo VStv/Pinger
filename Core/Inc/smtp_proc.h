@@ -8,6 +8,7 @@
 #ifndef INC_SMTP_PROC_H_
 #define INC_SMTP_PROC_H_
 
+#include "tcp_proc.h"
 #include "console_uart.h"
 
 #include "main.h"
@@ -24,8 +25,6 @@
 
 
 
-#define SMTP_SERVER_PORT		25
-//#define SMTP_SERVER_ADDR[4]		{127, 0, 0, 1}
 
 
 
@@ -46,7 +45,10 @@ enum smtp_session_state {
 };
 
 
-void SmtpProcess (void);
-osThreadId_t StartSmtpClient (void);
+
+void SendEmail (void);
+osThreadId_t StartSmtpClient (void *);
+
+
 
 #endif /* INC_SMTP_PROC_H_ */

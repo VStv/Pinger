@@ -23,11 +23,9 @@ char				alrm_telega_str[15];
 uint8_t				alrm_unrepl = 4;
 uint8_t				alrm_led;
 
+uint32_t			email_is_OK;
+
 extern char 				*pp;
-extern	osThreadId_t 		TcpClientTaskHandle;
-
-
-extern	osThreadId_t 		StartTcpClient (void);
 
 
 
@@ -315,7 +313,7 @@ static void PingLoop_thread (
 	osSemaphoreDelete (sid_PingReady);
 
 	osMessageQueueDelete (mid_PingRes);
-
+	mid_PingRes = NULL;
 
 	PingLoopHandle = NULL;
 	osThreadExit ();
@@ -354,8 +352,10 @@ static void StartSignal (void)
 	SwitchLeds (1);
 
 	// send e-mail
-//	StartSmtpClient ();
-	TcpClientTaskHandle = StartTcpClient();
+	if (email_is_OK)
+	{
+		SendEmail ();
+	}
 
 	// send telegram message: tg_send_message ()
 
