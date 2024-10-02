@@ -48,21 +48,22 @@
 #define HTTP_PROT				3
 
 
-typedef	char* (*server_app) (char*);
+typedef	void (*app_func) (void *);
 
 typedef struct {
 	struct netconn 	*conn;
 	char 			number;
-//	uint16_t		local_port;
-//	server_app		application;
 } conn_struct_t;
 
 
 typedef struct {
 //	conn_struct_t 	*conn_data;
-	uint16_t		local_port;
-	server_app		application;
-} serv_struct_t;
+	ip_addr_t		ip;
+	uint16_t		port;
+	app_func		application;
+	osThreadId_t	*app_id;
+	osSemaphoreId_t	*sem_app_cplt;
+} net_struct_t;
 
 
 osThreadId_t StartTcpServer (void *);

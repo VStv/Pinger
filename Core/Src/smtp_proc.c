@@ -46,21 +46,24 @@ static void SmtpClient_thread 	(
 	//
 
 
-	osSemaphoreRelease  (*psid_SmtpCplt);
-//	SmtpClientTaskHandle = NULL;
+	osSemaphoreRelease (*psid_SmtpCplt);
 	osThreadExit ();
 }
 
 
-
-osThreadId_t StartSmtpClient (void *arg)
+void StartSmtpClient 	(
+						void *arg
+						)
 {
-    const osThreadAttr_t Task_attributes = {
+	net_struct_t *pTcpClient = (net_struct_t *)arg;
+
+	const osThreadAttr_t Task_attributes = {
         .name = "SmtpClientTask",
         .stack_size = 3*512,
         .priority = (osPriority_t) osPriorityNormal,
     };
-	return osThreadNew (SmtpClient_thread, arg, &Task_attributes);
+	*(pTcpClient->app_id) = osThreadNew (SmtpClient_thread, (void *)pTcpClient->sem_app_cplt, &Task_attributes);
+	return;
 }
 
 
