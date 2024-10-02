@@ -9,12 +9,11 @@
 
 osThreadId_t 		TcpServerTaskHandle = NULL;
 osThreadId_t 		TcpConnHandle[TCP_CONNECTION_MAX] = {NULL};
-uint32_t			TcpServerApp;
 
-
-serv_struct_t		TcpServStruct;
+net_struct_t		TcpServerStruct;
 conn_struct_t 		TcpConnStruct[TCP_CONNECTION_MAX];
 
+net_struct_t		TcpClientStruct;
 osThreadId_t 		TcpClientTaskHandle = NULL;
 osThreadId_t 		AppClientTaskHandle = NULL;
 
@@ -35,22 +34,22 @@ static void TcpConn_thread 	(
 							void *arg
 							)
 {
-	conn_struct_t *pTcpConn = (conn_struct_t *)arg;
+	net_struct_t *pTcpServer = (net_struct_t *)arg;
 	struct netbuf *buf = NULL;
-	char *rdata, *wdata = NULL;
+	data_struct_t RW_data = {NULL};
 	uint16_t len;
 
 #ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpConnThread: accepted new connection %c\r\n", pTcpConn->number);
+	PRINTF ("TcpConnThread: accepted new connection %c\r\n", pTcpServer->conn_data->number);
 #endif
-	netconn_set_recvtimeout (pTcpConn->conn, 1000);
+	netconn_set_recvtimeout (pTcpServer->conn_data->conn, 1000);
 	// receive the data from the client
-	if (netconn_recv (pTcpConn->conn, &buf) == ERR_OK)
+	if (netconn_recv (pTcpServer->conn_data->conn, &buf) == ERR_OK)
 	{
-		netbuf_data (buf, (void**)&rdata, &len);
-		wdata = TcpServStruct.application (rdata);
+		netbuf_data (buf, (void**)&RW_data.r_data, &len);
+		pTcpServer->application ((void *)&RW_data);
 		// send the message back to the client
-		if (netconn_write (pTcpConn->conn, (const unsigned char*)wdata, (size_t)strlen (wdata), NETCONN_COPY) != ERR_OK)
+		if (netconn_write (pTcpServer->conn_data->conn, (const unsigned char*)RW_data.w_data, (size_t)strlen (RW_data.w_data), NETCONN_COPY) != ERR_OK)
 		{
 #ifdef DEBUG_TCP_PROC
 			PRINTF ("TcpConnThread: Write error\r\n\n");
@@ -63,26 +62,29 @@ static void TcpConn_thread 	(
 		PRINTF ("TcpConnThread: Receive error\r\n\n");
 #endif
 	}
-	if (wdata != NULL)
+	if (RW_data.w_data != NULL)
 	{
-		vPortFree (wdata);
+		vPortFree (RW_data.w_data);
 	}
 	if (buf != NULL)
 	{
 		netbuf_delete (buf);
 	}
-	netconn_close (pTcpConn->conn);
-	netconn_delete (pTcpConn->conn);
-	pTcpConn->conn = NULL;
+	netconn_close (pTcpServer->conn_data->conn);
+	netconn_delete (pTcpServer->conn_data->conn);
+	pTcpServer->conn_data->conn = NULL;
 #ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpConnThread: Connection %c closed\r\n\n", pTcpConn->number);
+	PRINTF ("TcpConnThread: Connection %c closed\r\n\n", pTcpServer->conn_data->number);
 #endif
 	osThreadExit ();
 }
 
 
-static void TcpServer_thread (void *arg)
+static void TcpServer_thread 	(
+								void *arg
+								)
 {
+	net_struct_t *pTcpServer = (net_struct_t *)arg;
 	struct netconn *conn, *newconn;
 	err_t err2;
 	conn_struct_t *pTcpConn = TcpConnStruct;
@@ -98,7 +100,7 @@ static void TcpServer_thread (void *arg)
 		goto exit1;
 	}
 	// Bind connection to the port 80
-	err2 = netconn_bind (conn, IP_ADDR_ANY, TcpServStruct.local_port);
+	err2 = netconn_bind (conn, IP_ADDR_ANY, pTcpServer->port);
 	if (err2 != ERR_OK)
 	{
 		err2 = netconn_delete(conn);
@@ -118,7 +120,7 @@ static void TcpServer_thread (void *arg)
 		{
 			for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
 			{
-				if (pTcpConn->conn == NULL)	//(pTcpServ->conn_data->conn == NULL)
+				if (pTcpConn->conn == NULL)
 				{
 #ifdef DEBUG_TCP_PROC
 					PRINTF("TcpServerThread: Connected with remote host: %d.%d.%d.%d: %d\r\n", (uint8_t)(newconn->pcb.tcp->remote_ip.addr), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>8), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>16), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>24), newconn->pcb.tcp->remote_port);
@@ -131,7 +133,8 @@ static void TcpServer_thread (void *arg)
 						.priority = (osPriority_t) osPriorityNormal,
 						.stack_size = 512 * 4,
 					};
-					TcpConnHandle[i] = osThreadNew (TcpConn_thread, (void *)pTcpConn, &tcpConn_attributes);
+					pTcpServer->conn_data = pTcpConn;
+					TcpConnHandle[i] = osThreadNew (TcpConn_thread, (void *)pTcpServer, &tcpConn_attributes);
 					newconn = NULL;
 					break;
 				}
@@ -160,36 +163,38 @@ osThreadId_t StartTcpServer (
 							void *arg
 							)
 {
+	uint32_t app = *(uint32_t *)arg;
+	net_struct_t *pTcpServer = &TcpServerStruct;
 	mid_PingData = osMessageQueueNew (1, sizeof(ping_struc_t), NULL);
 	vQueueAddToRegistry (mid_PingData, "mid_PingData");
-
-	uint32_t app = *(uint32_t *)arg;
 
 	switch (app)
 	{
 		case HTTP_PROT:
 			// Set local port
-			TcpServStruct.local_port = HTTP_SERVER_PORT;
-			TcpServStruct.application = HttpProcess;
+			pTcpServer->port = HTTP_SERVER_PORT;
+			pTcpServer->application = HttpProcess;
 			break;
 
 		default:
-			break;
+			return NULL;
 	}
-	conn_struct_t *pTcpConn = TcpConnStruct;
 
+	conn_struct_t *pTcpConn = TcpConnStruct;
 	for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
 	{
 		pTcpConn->number = '1'+i;
 		pTcpConn->conn = NULL;
 		pTcpConn++;
 	}
+	pTcpServer->conn_data = NULL;
+//	pTcpServer->conn_current = NULL;
     const osThreadAttr_t tcpTask_attributes = {
         .name = "TcpServerTask",
         .stack_size = 512 * 3,
         .priority = (osPriority_t) osPriorityNormal,
     	};
-    return osThreadNew(TcpServer_thread, NULL, &tcpTask_attributes);
+    return osThreadNew(TcpServer_thread, (void *)pTcpServer, &tcpTask_attributes);
 }
 
 
@@ -213,7 +218,6 @@ void my_callback	(
 			if (sid_Connected != NULL)
 			{
 				osSemaphoreRelease(sid_Connected);
-//				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
 			}
 			break;
 		default:
@@ -226,30 +230,12 @@ static void TcpClient_thread	(
 								void *arg
 								)
 {
-	uint32_t app = *(uint32_t *)arg;
+	net_struct_t *pTcpClient = (net_struct_t *)arg;
 	struct netconn *conn = NULL;
 	osStatus_t 	val;
 	err_t 		err;
-	ip_addr_t 	dest_addr;
 	uint16_t 	src_port;
-	uint16_t 	dst_port;
-
-	osThreadId_t 	(*pStartApp) (void *);
 	osSemaphoreId_t	sid_AppCplt = NULL;
-
-	switch (app)
-	{
-		case SMTP_PROT:
-			// Set remote IP-address & port
-			IP_ADDR4 (&dest_addr, SMTP_SERVER_ADDR0, SMTP_SERVER_ADDR1, SMTP_SERVER_ADDR2, SMTP_SERVER_ADDR3);
-			dst_port = SMTP_SERVER_PORT;
-			pStartApp = StartSmtpClient;
-			break;
-
-		default:
-			TcpClientTaskHandle = NULL;
-			osThreadExit ();
-	}
 
 	sid_Connected = osSemaphoreNew (1, 0, NULL);
 	vQueueAddToRegistry (sid_Connected, "sid_Connected");
@@ -274,12 +260,12 @@ static void TcpClient_thread	(
 		goto exit2;
 	}
 #ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpClientThread: Try to connect to port %d\r\n", dst_port);
+	PRINTF ("TcpClientThread: Try to connect to port %d\r\n", pTcpClient->port);
 	time1 = sys_now ();
 #endif
 	// connect to remote server at port
 	netconn_set_nonblocking (conn, 1);
-	err = netconn_connect (conn, &dest_addr, dst_port);
+	err = netconn_connect (conn, &pTcpClient->ip, pTcpClient->port);
 	val = osSemaphoreAcquire (sid_Connected, 1000U);
 	if (val != osOK)
 	{
@@ -296,11 +282,13 @@ static void TcpClient_thread	(
 #endif
 	netconn_set_nonblocking (conn, 0);
 
-	// Start client application
+	// Create complete-semaphore & start client application
 	sid_AppCplt = osSemaphoreNew (1, 0, NULL);
 	vQueueAddToRegistry (sid_AppCplt, "sid_AppCplt");
+	pTcpClient->sem_app_cplt = &sid_AppCplt;
+	pTcpClient->app_id = AppClientTaskHandle;
 
-	AppClientTaskHandle = pStartApp ((void *) &sid_AppCplt);
+	pTcpClient->application ((void *)pTcpClient);
 	osSemaphoreAcquire (sid_AppCplt, osWaitForever);
 	osSemaphoreDelete (sid_AppCplt);
 	sid_AppCplt = NULL;
@@ -329,11 +317,26 @@ osThreadId_t StartTcpClient (
 							void *arg
 							)
 {
+	uint32_t app = *(uint32_t *)arg;
+	net_struct_t *pTcpClient = &TcpClientStruct;
+
+	switch (app)
+	{
+		case SMTP_PROT:
+			// Set remote IP-address & port
+			IP_ADDR4 (&pTcpClient->ip, SMTP_SERVER_ADDR0, SMTP_SERVER_ADDR1, SMTP_SERVER_ADDR2, SMTP_SERVER_ADDR3);
+			pTcpClient->port = SMTP_SERVER_PORT;
+			pTcpClient->application = StartSmtpClient;
+			break;
+
+		default:
+			return NULL;
+	}
 	const osThreadAttr_t tcpTask_attributes = {
         .name = "TcpClientTask",
         .stack_size = 3*512,
         .priority = (osPriority_t) osPriorityNormal,
     };
-    return osThreadNew (TcpClient_thread, arg, &tcpTask_attributes);
+    return osThreadNew (TcpClient_thread, (void *)pTcpClient, &tcpTask_attributes);
 }
 

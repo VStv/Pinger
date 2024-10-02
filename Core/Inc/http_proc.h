@@ -35,13 +35,19 @@ typedef struct
 	char 			*email;
 	char	 		*telega;
 	uint8_t 		*led;
-} alrm_struc_t;
+} alrm_struct_t;
 
+
+typedef struct
+{
+	char 			*r_data;
+	char	 		*w_data;
+} data_struct_t;
 
 
 void RunHttpServer (void);
-char *HttpProcess (char *);
-
+//char *HttpProcess (char *);
+void HttpProcess (void *);
 
 
 #endif /* INC_HTTP_PROC_H_ */

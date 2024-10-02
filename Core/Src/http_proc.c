@@ -26,7 +26,7 @@ extern ip4_addr_t 			netmask;
 extern ip4_addr_t 			gw;
 extern uint8_t				static_ip;
 extern osThreadId_t 		TcpServerTaskHandle;
-extern uint32_t				TcpServerApp;
+//extern uint32_t				TcpServerApp;
 
 const char 			*str_list[12] = {"ipa1=", "ipa2=", "ipa3=", "ipa4=",
 									"ipm1=", "ipm2=", "ipm3=", "ipm4=",
@@ -43,8 +43,10 @@ const char			PAGE_HEADER_CONTENT_TEXT[] = "Content-type: text/html\r\n\r\n";
 
 void RunHttpServer (void)
 {
-	TcpServerApp = HTTP_PROT;
-	TcpServerTaskHandle = StartTcpServer ((void *)&TcpServerApp);
+//	TcpServerApp = HTTP_PROT;
+//	TcpServerTaskHandle = StartTcpServer ((void *)&TcpServerApp);
+	uint32_t app = HTTP_PROT;
+	TcpServerTaskHandle = StartTcpServer ((void *)&app);
 }
 
 
@@ -131,7 +133,7 @@ static uint32_t ParseNetsetting	(
 
 static uint32_t ParseAlarms	(
 							char *str,
-							alrm_struc_t *pAlarms
+							alrm_struct_t *pAlarms
 							)
 {
 	uint32_t j;
@@ -310,7 +312,7 @@ static void ResponseToGetconfig	(
 
 
 static void ResponseToGetalarms	(
-								alrm_struc_t *pAlarms,
+								alrm_struct_t *pAlarms,
 								char *pdat
 								)
 {
@@ -413,16 +415,19 @@ static void ResponseToGetdata	(
 	strcat (pdat, s1);
 }
 
-
-char *HttpProcess 	(
-					char *data
+//char *HttpProcess (char *data)
+void HttpProcess 	(
+					void *arg
 					)
 {
-	struct fs_file file;
-	char *wbuf;
+	data_struct_t *pRW_data = (data_struct_t *)arg;
+	char *wbuf, *data;
+//	wbuf = pRW_data->w_data;
+	data = pRW_data->r_data;
 
+	struct fs_file file;
 	set_struc_t ipSettings;
-	alrm_struc_t Alarms_struc;
+	alrm_struct_t Alarms_struc;
 	ping_struc_t pingSettings;
 
 	FlashReadBuf ((uint8_t *)ssid_str, FLASH_WIFISSID_ADDR, FLASH_WIFISSID_SIZE);
@@ -551,7 +556,8 @@ char *HttpProcess 	(
 		memcpy (wbuf, (char *)file.data, file.len);
 		fs_close (&file);
 	}
-	return wbuf;
+	pRW_data->w_data = wbuf;
+	return;
 }
 
 
