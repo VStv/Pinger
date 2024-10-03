@@ -34,22 +34,28 @@ static void TcpConn_thread 	(
 							void *arg
 							)
 {
-	conn_struct_t *pTcpConn = (conn_struct_t *)arg;
+	net_struct_t *pTcpServer = (net_struct_t *)arg;
 	struct netbuf *buf = NULL;
 	data_struct_t RW_data = {NULL};
 	uint16_t len;
 
 #ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpConnThread: accepted new connection %c\r\n", pTcpConn->number);
+	PRINTF ("TcpConnThread: accepted new connection %c\r\n", pTcpServer->conn_data->number);
 #endif
-	netconn_set_recvtimeout (pTcpConn->conn, 1000);
+	netconn_set_recvtimeout (pTcpServer->conn_data->conn, 1000);
 	// receive the data from the client
-	if (netconn_recv (pTcpConn->conn, &buf) == ERR_OK)
+	if (netconn_recv (pTcpServer->conn_data->conn, &buf) == ERR_OK)
 	{
 		netbuf_data (buf, (void**)&RW_data.r_data, &len);
+<<<<<<< HEAD
 		TcpServerStruct.application ((void *)&RW_data);
 		// send the message back to the client
 		if (netconn_write (pTcpConn->conn, (const unsigned char*)RW_data.w_data, (size_t)strlen (RW_data.w_data), NETCONN_COPY) != ERR_OK)
+=======
+		pTcpServer->application ((void *)&RW_data);
+		// send the message back to the client
+		if (netconn_write (pTcpServer->conn_data->conn, (const unsigned char*)RW_data.w_data, (size_t)strlen (RW_data.w_data), NETCONN_COPY) != ERR_OK)
+>>>>>>> 59fbf45ee95da206eb3a919743bc6a1f00ee84ca
 		{
 #ifdef DEBUG_TCP_PROC
 			PRINTF ("TcpConnThread: Write error\r\n\n");
@@ -70,11 +76,11 @@ static void TcpConn_thread 	(
 	{
 		netbuf_delete (buf);
 	}
-	netconn_close (pTcpConn->conn);
-	netconn_delete (pTcpConn->conn);
-	pTcpConn->conn = NULL;
+	netconn_close (pTcpServer->conn_data->conn);
+	netconn_delete (pTcpServer->conn_data->conn);
+	pTcpServer->conn_data->conn = NULL;
 #ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpConnThread: Connection %c closed\r\n\n", pTcpConn->number);
+	PRINTF ("TcpConnThread: Connection %c closed\r\n\n", pTcpServer->conn_data->number);
 #endif
 	osThreadExit ();
 }
@@ -133,7 +139,8 @@ static void TcpServer_thread 	(
 						.priority = (osPriority_t) osPriorityNormal,
 						.stack_size = 512 * 4,
 					};
-					TcpConnHandle[i] = osThreadNew (TcpConn_thread, (void *)pTcpConn, &tcpConn_attributes);
+					pTcpServer->conn_data = pTcpConn;
+					TcpConnHandle[i] = osThreadNew (TcpConn_thread, (void *)pTcpServer, &tcpConn_attributes);
 					newconn = NULL;
 					break;
 				}
@@ -177,6 +184,10 @@ osThreadId_t StartTcpServer (
 		default:
 			return NULL;
 	}
+<<<<<<< HEAD
+=======
+
+>>>>>>> 59fbf45ee95da206eb3a919743bc6a1f00ee84ca
 	conn_struct_t *pTcpConn = TcpConnStruct;
 	for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
 	{
@@ -184,6 +195,8 @@ osThreadId_t StartTcpServer (
 		pTcpConn->conn = NULL;
 		pTcpConn++;
 	}
+	pTcpServer->conn_data = NULL;
+//	pTcpServer->conn_current = NULL;
     const osThreadAttr_t tcpTask_attributes = {
         .name = "TcpServerTask",
         .stack_size = 512 * 3,
@@ -281,7 +294,11 @@ static void TcpClient_thread	(
 	sid_AppCplt = osSemaphoreNew (1, 0, NULL);
 	vQueueAddToRegistry (sid_AppCplt, "sid_AppCplt");
 	pTcpClient->sem_app_cplt = &sid_AppCplt;
+<<<<<<< HEAD
 	pTcpClient->app_id = &AppClientTaskHandle;
+=======
+	pTcpClient->app_id = AppClientTaskHandle;
+>>>>>>> 59fbf45ee95da206eb3a919743bc6a1f00ee84ca
 
 	pTcpClient->application ((void *)pTcpClient);
 	osSemaphoreAcquire (sid_AppCplt, osWaitForever);

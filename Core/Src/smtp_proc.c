@@ -46,7 +46,11 @@ static void SmtpClient_thread 	(
 	//
 
 
+<<<<<<< HEAD
 	osSemaphoreRelease (*psid_SmtpCplt);
+=======
+	osSemaphoreRelease  (*psid_SmtpCplt);
+>>>>>>> 59fbf45ee95da206eb3a919743bc6a1f00ee84ca
 	osThreadExit ();
 }
 
@@ -62,7 +66,11 @@ void StartSmtpClient 	(
         .stack_size = 3*512,
         .priority = (osPriority_t) osPriorityNormal,
     };
+<<<<<<< HEAD
 	*(pTcpClient->app_id) = osThreadNew (SmtpClient_thread, (void *)pTcpClient->sem_app_cplt, &Task_attributes);
+=======
+	pTcpClient->app_id = osThreadNew (SmtpClient_thread, (void *)pTcpClient->sem_app_cplt, &Task_attributes);
+>>>>>>> 59fbf45ee95da206eb3a919743bc6a1f00ee84ca
 	return;
 }
 

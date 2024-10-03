@@ -57,11 +57,19 @@ typedef struct {
 
 
 typedef struct {
+<<<<<<< HEAD
 //	conn_struct_t 	*conn_data;
 	ip_addr_t		ip;
 	uint16_t		port;
 	app_func		application;
 	osThreadId_t	*app_id;
+=======
+	conn_struct_t 	*conn_data;
+	ip_addr_t		ip;
+	uint16_t		port;
+	app_func		application;
+	osThreadId_t	app_id;
+>>>>>>> 59fbf45ee95da206eb3a919743bc6a1f00ee84ca
 	osSemaphoreId_t	*sem_app_cplt;
 } net_struct_t;
 
