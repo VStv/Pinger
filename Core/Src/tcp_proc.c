@@ -287,7 +287,6 @@ static void TcpClient_thread	(
 	osSemaphoreAcquire (sid_AppCplt, osWaitForever);
 	osSemaphoreDelete (sid_AppCplt);
 	sid_AppCplt = NULL;
-//	pTcpClient->app_id = NULL;
 	AppClientTaskHandle = NULL;
 	// delete client application and semaphores
 

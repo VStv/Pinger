@@ -26,7 +26,6 @@ extern ip4_addr_t 			netmask;
 extern ip4_addr_t 			gw;
 extern uint8_t				static_ip;
 extern osThreadId_t 		TcpServerTaskHandle;
-//extern uint32_t				TcpServerApp;
 
 const char 			*str_list[12] = {"ipa1=", "ipa2=", "ipa3=", "ipa4=",
 									"ipm1=", "ipm2=", "ipm3=", "ipm4=",
@@ -36,15 +35,12 @@ const char 			*str_list2[4] = {"hipa1=", "hipa2=", "hipa3=", "hipa4="};
 
 const char			PAGE_HEADER_200_OK[] = "HTTP/1.1 200 OK\r\n";
 const char			PAGE_HEADER_CONTENT_TEXT[] = "Content-type: text/html\r\n\r\n";
-//const char			DEFAULT_EMAIL[] = "192.168.0.2";
 
 
 
 
 void RunHttpServer (void)
 {
-//	TcpServerApp = HTTP_PROT;
-//	TcpServerTaskHandle = StartTcpServer ((void *)&TcpServerApp);
 	uint32_t app = HTTP_PROT;
 	TcpServerTaskHandle = StartTcpServer ((void *)&app);
 }
@@ -415,14 +411,12 @@ static void ResponseToGetdata	(
 	strcat (pdat, s1);
 }
 
-//char *HttpProcess (char *data)
 void HttpProcess 	(
 					void *arg
 					)
 {
 	data_struct_t *pRW_data = (data_struct_t *)arg;
 	char *wbuf, *data;
-//	wbuf = pRW_data->w_data;
 	data = pRW_data->r_data;
 
 	struct fs_file file;

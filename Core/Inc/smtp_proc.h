@@ -47,7 +47,6 @@ enum smtp_session_state {
 
 
 void SendEmail (void);
-//osThreadId_t StartSmtpClient (void *);
 void StartSmtpClient (void *);
 
 

@@ -134,7 +134,6 @@ static void Ping_thread (
 	txBuf->addr = *p_dest_addr;
 
 	err = netbuf_ref(txBuf, iecho, ping_size);
-//	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
 
 	// send the netbuf to the server
 	netconn_send (conn, txBuf);

@@ -20,7 +20,6 @@
 #include "lwip/api.h"
 #include "lwip/sys.h"
 
-//#include "lwip/tcp.h"
 
 #include "lwip/apps/fs.h"
 
@@ -46,7 +45,6 @@ typedef struct
 
 
 void RunHttpServer (void);
-//char *HttpProcess (char *);
 void HttpProcess (void *);
 
 

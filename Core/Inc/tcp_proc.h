@@ -57,7 +57,6 @@ typedef struct {
 
 
 typedef struct {
-//	conn_struct_t 	*conn_data;
 	ip_addr_t		ip;
 	uint16_t		port;
 	app_func		application;
