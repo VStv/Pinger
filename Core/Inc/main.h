@@ -32,16 +32,24 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "debug_macro.h"
+#include "console_uart.h"
 
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+typedef struct
+{
+	char 			*r_data;
+	char	 		*w_data;
+} data_struct_t;
 
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
+#define SMTP_PROT				2
+#define HTTP_PROT				3
 
 /* USER CODE END EC */
 

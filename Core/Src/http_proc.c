@@ -20,12 +20,10 @@ extern reply_struc_t 		Ping_res;
 extern osThreadId_t 		PingLoopHandle;
 extern osMessageQueueId_t 	mid_PingData;
 extern uint32_t				email_is_OK;
-extern char 				*pp;
 extern ip4_addr_t 			ipaddr;
 extern ip4_addr_t 			netmask;
 extern ip4_addr_t 			gw;
 extern uint8_t				static_ip;
-extern osThreadId_t 		TcpServerTaskHandle;
 
 const char 			*str_list[12] = {"ipa1=", "ipa2=", "ipa3=", "ipa4=",
 									"ipm1=", "ipm2=", "ipm3=", "ipm4=",
@@ -39,11 +37,13 @@ const char			PAGE_HEADER_CONTENT_TEXT[] = "Content-type: text/html\r\n\r\n";
 
 
 
-void RunHttpServer (void)
-{
-	uint32_t app = HTTP_PROT;
-	TcpServerTaskHandle = StartTcpServer ((void *)&app);
-}
+//void SetHttpServerData (pTcpServer)
+//{
+//	pTcpServer->port = HTTP_SERVER_PORT;
+//	pTcpServer->application = HttpProcess;
+//}
+
+
 
 
 static uint32_t ParseNetsetting	(

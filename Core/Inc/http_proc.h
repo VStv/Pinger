@@ -10,7 +10,7 @@
 
 #include "settings_proc.h"
 #include "ping_proc.h"
-#include "console_uart.h"
+//#include "console_uart.h"
 
 #include "main.h"
 #include "cmsis_os.h"
@@ -28,6 +28,9 @@
 #include <stdlib.h>
 
 
+#define HTTP_SERVER_PORT		80
+
+
 typedef struct
 {
 	uint8_t 		*unrepl;
@@ -37,11 +40,11 @@ typedef struct
 } alrm_struct_t;
 
 
-typedef struct
-{
-	char 			*r_data;
-	char	 		*w_data;
-} data_struct_t;
+//typedef struct
+//{
+//	char 			*r_data;
+//	char	 		*w_data;
+//} data_struct_t;
 
 
 void RunHttpServer (void);

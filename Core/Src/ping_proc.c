@@ -27,6 +27,9 @@ uint32_t			email_is_OK;
 
 extern char 				*pp;
 
+extern void RunAppClient (uint32_t);
+
+
 
 
 // Prepare a echo ICMP request
@@ -353,7 +356,7 @@ static void StartSignal (void)
 	// send e-mail
 	if (email_is_OK)
 	{
-		SendEmail ();
+		RunAppClient (SMTP_PROT);
 	}
 
 	// send telegram message: tg_send_message ()
