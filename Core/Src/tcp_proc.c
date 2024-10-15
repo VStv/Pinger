@@ -74,10 +74,10 @@ static void TcpConn_thread 	(
 
 
 
-	if (buf != NULL)
-	{
+//	if (buf != NULL)
+//	{
 		netbuf_delete (buf);
-	}
+//	}
 	netconn_close (pTcpConn->conn);
 	netconn_delete (pTcpConn->conn);
 	pTcpConn->conn = NULL;
@@ -95,11 +95,11 @@ static void TcpServer_thread 	(
 	net_struct_t *pTcpServer = (net_struct_t *)arg;
 	struct netconn *conn, *newconn;
 	err_t err2;
-	conn_struct_t *pTcpConn = TcpConnStruct;
+	conn_struct_t *pTcpConn;// = TcpConnStruct;
 
 	sid_Connected = osSemaphoreNew (1, 0, NULL);
 	// Create a new connection identifier
-    conn = netconn_new(NETCONN_TCP);
+    conn = netconn_new (NETCONN_TCP);
 	if (conn == NULL)
 	{
 #ifdef DEBUG_TCP_PROC
@@ -126,6 +126,7 @@ static void TcpServer_thread 	(
 		// Grab & Process new connection
 		if (netconn_accept(conn, &newconn) == ERR_OK)
 		{
+			pTcpConn = TcpConnStruct;
 			for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
 			{
 				if (pTcpConn->conn == NULL)
@@ -417,6 +418,8 @@ static void TcpClient_thread	(
 #endif
 				break;
 			}
+			vPortFree (RW_data.w_data);
+			netbuf_delete(buf);
 		}
 		else
 		{
@@ -426,6 +429,8 @@ static void TcpClient_thread	(
 			break;
 		}
 	}
+	vPortFree (RW_data.w_data);
+	netbuf_delete (buf);
 	err = netconn_close (conn);
 	err = netconn_delete (conn);
 	conn = NULL;

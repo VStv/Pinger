@@ -55,6 +55,7 @@ void SmtpProcess 	(
 	if (strstr ((const char*)data, "221"))
 	{
 		pRW_data->w_data = NULL;
+//		vPortFree (wbuf);
 		return;
 	}
 
