@@ -247,95 +247,6 @@ void my_callback	(
 	}
 }
 
-/*
-static void TcpClient2_thread	(
-								void *arg
-								)
-{
-	net_struct_t *pTcpClient = (net_struct_t *)arg;
-	struct netconn *conn = NULL;
-	osStatus_t 	val;
-	err_t 		err;
-	uint16_t 	src_port;
-	osSemaphoreId_t	sid_AppCplt = NULL;
-
-	sid_Connected = osSemaphoreNew (1, 0, NULL);
-	vQueueAddToRegistry (sid_Connected, "sid_Connected");
-	// Create a new connection identifier
-	conn = netconn_new_with_callback (NETCONN_TCP, my_callback);
-	if (conn == NULL)
-	{
-#ifdef DEBUG_TCP_PROC
-		PRINTF ("TcpClientThread: Can't create connection");
-#endif
-		goto exit2;
-	}
-	// Bind connection to random local port
-	src_port = (uint16_t) SysTick->VAL;
-	err = netconn_bind (conn, IP_ADDR_ANY, src_port);
-	if (err != ERR_OK)
-	{
-#ifdef DEBUG_TCP_PROC
-		PRINTF ("TcpClientThread: Can't bind TCP connection, err = %d", err);
-#endif
-		err = netconn_delete (conn);
-		goto exit2;
-	}
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpClientThread: Try to connect to port %d\r\n", pTcpClient->port);
-	time1 = sys_now ();
-#endif
-	// connect to remote server at port
-	netconn_set_nonblocking (conn, 1);
-	err = netconn_connect (conn, &pTcpClient->ip, pTcpClient->port);
-	val = osSemaphoreAcquire (sid_Connected, 1000U);
-	if (val != osOK)
-	{
-#ifdef DEBUG_TCP_PROC
-		PRINTF ("TcpClientThread: Connection dropped\r\n");
-#endif
-		netconn_set_nonblocking (conn, 0);
-		conn->callback = NULL;
-		err = netconn_delete (conn);
-		conn = NULL;
-		goto exit2;
-	}
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpClientThread: Connected to server\r\n");
-#endif
-	netconn_set_nonblocking (conn, 0);
-	conn->callback = NULL;
-
-	// Create complete-semaphore & start client application
-	sid_AppCplt = osSemaphoreNew (1, 0, NULL);
-	vQueueAddToRegistry (sid_AppCplt, "sid_AppCplt");
-	pTcpClient->sem_app_cplt = &sid_AppCplt;
-
-	pTcpClient->application ((void *)pTcpClient->sem_app_cplt);
-	osSemaphoreAcquire (sid_AppCplt, osWaitForever);
-
-	// delete client application and semaphores
-	osSemaphoreDelete (sid_AppCplt);
-	sid_AppCplt = NULL;
-
-	err = netconn_close (conn);
-	err = netconn_delete (conn);
-	conn = NULL;
-
-exit2:
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpClientThread: Connection closed\r\n");
-#endif
-	if (sid_Connected)
-	{
-		osSemaphoreDelete (sid_Connected);
-		sid_Connected = NULL;
-	}
-	TcpClientTaskHandle = NULL;
-	osThreadExit ();
-}
-*/
-
 
 static void TcpClient_thread	(
 								void *arg
@@ -398,7 +309,7 @@ static void TcpClient_thread	(
 	conn->callback = NULL;
 
 
-	netconn_set_recvtimeout (conn, 5000);
+	netconn_set_recvtimeout (conn, 10000);
 	while (1)
 	{
 		// receive the data from the client

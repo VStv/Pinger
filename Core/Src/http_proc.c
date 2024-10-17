@@ -440,42 +440,42 @@ void HttpProcess 	(
 	Alarms_struc.led = &alrm_led;
 
 	// Check if request to get the index.html
-	if (strncmp((char const *)data, "GET /index.html", 15)==0 || strncmp((char const *)data, "GET / ", 6)==0)
+	if (strncmp((const char*)data, "GET /index.html", 15)==0 || strncmp((const char*)data, "GET / ", 6)==0)
 	{
 		fs_open(&file, "/index.html");
 		wbuf = pvPortMalloc(file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
 		fs_close(&file);
 	}
-	else if (strncmp((char const *)data, "GET /alarms.html", 16)==0)
+	else if (strncmp((const char*)data, "GET /alarms.html", 16)==0)
 	{
 		fs_open(&file, "/alarms.html");
 		wbuf = pvPortMalloc(file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
 		fs_close(&file);
 	}
-	else if (strncmp((char const *)data, "GET /ping.html", 14)==0)
+	else if (strncmp((const char*)data, "GET /ping.html", 14)==0)
 	{
 		fs_open(&file, "/ping.html");
 		wbuf = pvPortMalloc(file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
 		fs_close(&file);
 	}
-	else if (strncmp((char const *)data, "GET /style.css", 14)==0)
+	else if (strncmp((const char*)data, "GET /style.css", 14)==0)
 	{
 		fs_open(&file, "/style.css");
 		wbuf = pvPortMalloc(file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
 		fs_close(&file);
 	}
-	else if (strncmp((char const *)data, "GET /myScript.js", 16)==0)
+	else if (strncmp((const char*)data, "GET /myScript.js", 16)==0)
 	{
 		fs_open(&file, "/myScript.js");
 		wbuf = pvPortMalloc(file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
 		fs_close(&file);
 	}
-	else if (strncmp((char const *)data, "GET /setconfig?", 15)==0)
+	else if (strncmp((const char*)data, "GET /setconfig?", 15)==0)
 	{
 		if (ParseNetsetting (data+15, &ipSettings) == 0)
 		{
@@ -485,38 +485,38 @@ void HttpProcess 	(
 		wbuf = pvPortMalloc(200);
 		sprintf (wbuf, "%s\r\n", PAGE_HEADER_200_OK);
 	}
-	else if (strncmp((char const *)data, "GET /setalarm?", 14)==0)
+	else if (strncmp((const char*)data, "GET /setalarm?", 14)==0)
 	{
 		ParseAlarms (data+14, &Alarms_struc);
 		wbuf = pvPortMalloc(200);
 		sprintf (wbuf, "%s\r\n", PAGE_HEADER_200_OK);
 	}
-	else if (strncmp((char const *)data, "GET /start?", 11)==0)
+	else if (strncmp ((const char*)data, "GET /start?", 11) == 0)
 	{
 		if (PingLoopHandle == NULL)
 		{
 			if (ParsePingRequest (data+11, &pingSettings) == 0)
 			{
-				osMessageQueuePut(mid_PingData, &pingSettings, 0U, 0U);
+				osMessageQueuePut (mid_PingData, &pingSettings, 0U, 0U);
 				PingLoopHandle = StartPings ();
-				wbuf = pvPortMalloc(200);
+				wbuf = pvPortMalloc (200);
 				sprintf (wbuf, "%s%s", PAGE_HEADER_200_OK, PAGE_HEADER_CONTENT_TEXT);
 				strcat (wbuf, "state=OK");
 			}
 		}
 		else
 		{
-			wbuf = pvPortMalloc(200);
+			wbuf = pvPortMalloc (200);
 			sprintf (wbuf, "%s%s", PAGE_HEADER_200_OK, PAGE_HEADER_CONTENT_TEXT);
 			strcat (wbuf, "state=BUSY");
 		}
 	}
-	else if (strncmp((char const *)data, "GET /stop", 9)==0)
+	else if (strncmp ((const char*)data, "GET /stop", 9) == 0)
 	{
 		if (PingLoopHandle != NULL)
 		{
 			StopPing ();
-			wbuf = pvPortMalloc(200);
+			wbuf = pvPortMalloc (200);
 			ResponseToGetdata (&Ping_res, wbuf);
 		}
 		else
@@ -526,17 +526,17 @@ void HttpProcess 	(
 			strcat (wbuf, "state=ERROR");
 		}
 	}
-	else if (strncmp ((char const *)data, "GET /getconfig", 14) == 0)
+	else if (strncmp ((const char*)data, "GET /getconfig", 14) == 0)
 	{
 		wbuf = pvPortMalloc (200);
 		ResponseToGetconfig (&ipSettings, wbuf);
 	}
-	else if (strncmp ((char const *)data, "GET /getalarms", 14) == 0)
+	else if (strncmp ((const char*)data, "GET /getalarms", 14) == 0)
 	{
 		wbuf = pvPortMalloc (200);
 		ResponseToGetalarms (&Alarms_struc, wbuf);
 	}
-	else if (strncmp ((char const *)data, "GET /getdata", 12) == 0)
+	else if (strncmp ((const char*)data, "GET /getdata", 12) == 0)
 	{
 		// update Ping_res from message
 
