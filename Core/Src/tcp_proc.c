@@ -9,13 +9,12 @@
 
 osThreadId_t 		TcpServerTaskHandle = NULL;
 osThreadId_t 		TcpConnHandle[TCP_CONNECTION_MAX] = {NULL};
+osThreadId_t 		TcpClientTaskHandle = NULL;
 
-net_struct_t		TcpServerStruct;
 conn_struct_t 		TcpConnStruct[TCP_CONNECTION_MAX];
 
+net_struct_t		TcpServerStruct;
 net_struct_t		TcpClientStruct;
-osThreadId_t 		TcpClientTaskHandle = NULL;
-osThreadId_t 		AppClientTaskHandle = NULL;
 
 osSemaphoreId_t 	sid_Connected = NULL;
 
@@ -26,7 +25,6 @@ uint32_t time1, wait_time;
 
 
 extern char 				*pp;
-extern osMessageQueueId_t 	mid_PingData;
 
 
 //---------------------------------------------------------------------------------------
@@ -42,6 +40,9 @@ static void TcpConn_thread 	(
 #ifdef DEBUG_TCP_PROC
 	PRINTF ("TcpConnThread: accepted new connection %c\r\n", pTcpConn->number);
 #endif
+
+
+
 	netconn_set_recvtimeout (pTcpConn->conn, 1000);
 	// receive the data from the client
 	if (netconn_recv (pTcpConn->conn, &buf) == ERR_OK)
@@ -66,10 +67,13 @@ static void TcpConn_thread 	(
 	{
 		vPortFree (RW_data.w_data);
 	}
-	if (buf != NULL)
-	{
+
+
+
+//	if (buf != NULL)
+//	{
 		netbuf_delete (buf);
-	}
+//	}
 	netconn_close (pTcpConn->conn);
 	netconn_delete (pTcpConn->conn);
 	pTcpConn->conn = NULL;
@@ -87,11 +91,11 @@ static void TcpServer_thread 	(
 	net_struct_t *pTcpServer = (net_struct_t *)arg;
 	struct netconn *conn, *newconn;
 	err_t err2;
-	conn_struct_t *pTcpConn = TcpConnStruct;
+	conn_struct_t *pTcpConn;// = TcpConnStruct;
 
 	sid_Connected = osSemaphoreNew (1, 0, NULL);
 	// Create a new connection identifier
-    conn = netconn_new(NETCONN_TCP);
+    conn = netconn_new (NETCONN_TCP);
 	if (conn == NULL)
 	{
 #ifdef DEBUG_TCP_PROC
@@ -118,6 +122,7 @@ static void TcpServer_thread 	(
 		// Grab & Process new connection
 		if (netconn_accept(conn, &newconn) == ERR_OK)
 		{
+			pTcpConn = TcpConnStruct;
 			for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
 			{
 				if (pTcpConn->conn == NULL)
@@ -164,8 +169,6 @@ osThreadId_t StartTcpServer (
 {
 	uint32_t app = *(uint32_t *)arg;
 	net_struct_t *pTcpServer = &TcpServerStruct;
-	mid_PingData = osMessageQueueNew (1, sizeof(ping_struc_t), NULL);
-	vQueueAddToRegistry (mid_PingData, "mid_PingData");
 
 	switch (app)
 	{
@@ -193,6 +196,14 @@ osThreadId_t StartTcpServer (
 }
 
 
+void RunAppServer 	(
+					uint32_t app
+					)
+{
+	TcpServerTaskHandle = StartTcpServer ((void *)&app);
+}
+
+
 // ---------------------------------------------------------------------------------------
 void my_callback	(
 					struct netconn *conn,
@@ -212,10 +223,17 @@ void my_callback	(
 				break;
 			if (sid_Connected != NULL)
 			{
+#ifdef DEBUG_TCP_PROC
+				wait_time = (sys_now() - time1 == 0) ? 1: sys_now() - time1;
+				PRINTF ("my_callback: Connection is Ok at %ld ms\r\n", wait_time);
+#endif
 				osSemaphoreRelease(sid_Connected);
 			}
 			break;
 		default:
+#ifdef DEBUG_TCP_PROC
+			PRINTF ("my_callback: No connection, evt %d\r\n", evt);
+#endif
 			break;
 	}
 }
@@ -227,10 +245,12 @@ static void TcpClient_thread	(
 {
 	net_struct_t *pTcpClient = (net_struct_t *)arg;
 	struct netconn *conn = NULL;
+	struct netbuf *buf = NULL;
+	uint16_t len;
 	osStatus_t 	val;
 	err_t 		err;
 	uint16_t 	src_port;
-	osSemaphoreId_t	sid_AppCplt = NULL;
+	data_struct_t RW_data = {NULL};
 
 	sid_Connected = osSemaphoreNew (1, 0, NULL);
 	vQueueAddToRegistry (sid_Connected, "sid_Connected");
@@ -268,6 +288,7 @@ static void TcpClient_thread	(
 		PRINTF ("TcpClientThread: Connection dropped\r\n");
 #endif
 		netconn_set_nonblocking (conn, 0);
+		conn->callback = NULL;
 		err = netconn_delete (conn);
 		conn = NULL;
 		goto exit2;
@@ -276,20 +297,45 @@ static void TcpClient_thread	(
 	PRINTF ("TcpClientThread: Connected to server\r\n");
 #endif
 	netconn_set_nonblocking (conn, 0);
+	conn->callback = NULL;
 
-	// Create complete-semaphore & start client application
-	sid_AppCplt = osSemaphoreNew (1, 0, NULL);
-	vQueueAddToRegistry (sid_AppCplt, "sid_AppCplt");
-	pTcpClient->sem_app_cplt = &sid_AppCplt;
-	pTcpClient->app_id = &AppClientTaskHandle;
 
-	pTcpClient->application ((void *)pTcpClient);
-	osSemaphoreAcquire (sid_AppCplt, osWaitForever);
-	osSemaphoreDelete (sid_AppCplt);
-	sid_AppCplt = NULL;
-	AppClientTaskHandle = NULL;
-	// delete client application and semaphores
+	netconn_set_recvtimeout (conn, 10000);
+	while (1)
+	{
+		// receive the data from the client
+		if (netconn_recv (conn, &buf) == ERR_OK)
+		{
+			netbuf_data (buf, (void**)&RW_data.r_data, &len);
+			pTcpClient->application ((void *)&RW_data);
 
+			if (RW_data.w_data == NULL)
+				break;
+
+			// send the message back to the client
+			if (netconn_write (conn, (const unsigned char*)RW_data.w_data, (size_t)strlen (RW_data.w_data), NETCONN_COPY) != ERR_OK)
+			{
+#ifdef DEBUG_TCP_PROC
+				PRINTF ("TcpClientThread: Write error\r\n\n");
+#endif
+				break;
+			}
+			vPortFree (RW_data.w_data);
+			netbuf_delete(buf);
+		}
+		else
+		{
+#ifdef DEBUG_TCP_PROC
+			PRINTF ("TcpClientThread: Receive error\r\n\n");
+#endif
+			// smtp_status <- 0
+			RW_data.r_data = NULL;
+			pTcpClient->application ((void *)&RW_data);
+			break;
+		}
+	}
+	vPortFree (RW_data.w_data);
+	netbuf_delete (buf);
 	err = netconn_close (conn);
 	err = netconn_delete (conn);
 	conn = NULL;
@@ -319,9 +365,9 @@ osThreadId_t StartTcpClient (
 	{
 		case SMTP_PROT:
 			// Set remote IP-address & port
-			IP_ADDR4 (&pTcpClient->ip, SMTP_SERVER_ADDR0, SMTP_SERVER_ADDR1, SMTP_SERVER_ADDR2, SMTP_SERVER_ADDR3);
+			ip4addr_aton (SMTP_SERVER_ADDR, &pTcpClient->ip);
 			pTcpClient->port = SMTP_SERVER_PORT;
-			pTcpClient->application = StartSmtpClient;
+			pTcpClient->application = SmtpProcess;//StartSmtpClient;//
 			break;
 
 		default:
@@ -333,5 +379,13 @@ osThreadId_t StartTcpClient (
         .priority = (osPriority_t) osPriorityNormal,
     };
     return osThreadNew (TcpClient_thread, (void *)pTcpClient, &tcpTask_attributes);
+}
+
+
+void RunAppClient 	(
+					uint32_t app
+					)
+{
+	TcpClientTaskHandle = StartTcpClient ((void *)&app);
 }
 

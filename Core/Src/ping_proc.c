@@ -9,7 +9,6 @@
 
 osThreadId_t 		PingHandle = NULL;
 osThreadId_t 		PingLoopHandle = NULL;
-osMessageQueueId_t 	mid_PingData = NULL;
 osSemaphoreId_t 	sid_PingReady = NULL;
 osMessageQueueId_t 	mid_PingRes = NULL;
 
@@ -26,6 +25,9 @@ uint8_t				alrm_led;
 uint32_t			email_is_OK;
 
 extern char 				*pp;
+
+extern void RunAppClient (uint32_t);
+
 
 
 
@@ -122,23 +124,23 @@ static void Ping_thread (
 #ifdef DEBUG_PING_PROC
 		PRINTF("PingThread: Can't allocate memory");
 #endif
-		netconn_delete(conn);
+		netconn_delete (conn);
 		goto exit1;
 	}
 	PingPrepareEcho (iecho, (u16_t)ping_size);
 
 	// Create a new netbuf
-	txBuf = netbuf_new();
+	txBuf = netbuf_new ();
 
 	// Remote IP-address
 	txBuf->addr = *p_dest_addr;
 
-	err = netbuf_ref(txBuf, iecho, ping_size);
+	err = netbuf_ref (txBuf, iecho, ping_size);
 
 	// send the netbuf to the server
 	netconn_send (conn, txBuf);
 
-	ping_time1 = sys_now();
+	ping_time1 = sys_now ();
 
 	// waiting for data from server
 	err = netconn_recv (conn, &rxBuf);
@@ -147,7 +149,7 @@ static void Ping_thread (
 		case ERR_OK:
 		{
 			// Handling received data
-			reply_time = (sys_now() - ping_time1 == 0) ? 1: sys_now() - ping_time1;
+			reply_time = (sys_now() - ping_time1 == 0) ? 1: sys_now () - ping_time1;
 			memset (smsg, '\0', 200);
 			memcpy (smsg, rxBuf->ptr->payload + sizeof(struct ip_hdr), rxBuf->ptr->len - sizeof(struct ip_hdr));
 			err = AnalyseReply ((void *)iecho, (void *) smsg);
@@ -211,20 +213,20 @@ static void Ping_thread (
 	mem_free(iecho);
 	netbuf_delete (txBuf);
 	netbuf_delete (rxBuf);
-	netconn_delete(conn);
+	netconn_delete (conn);
 #ifdef DEBUG_PING_PROC
 	PRINTF ("PingThread: Connection removed\r\n");
 #endif
 
 	// return data to Ping_res (message)
 	ping_res.ping_cnt++;
-	osMessageQueuePut(mid_PingRes, &ping_res, 0U, 0U);
+	osMessageQueuePut (mid_PingRes, &ping_res, 0U, 0U);
 
 exit1:
 //	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
 	PingHandle = NULL;
     osSemaphoreRelease (sid_PingReady);
-	osThreadExit();
+	osThreadExit ();
 }
 
 
@@ -242,18 +244,19 @@ static osThreadId_t StartOnePing 	(
 
 
 static void SwitchLeds 	(
+						uint8_t led,
 						uint32_t state
 						)
 {
-	if (alrm_led & ALARM_LED_RED)
+	if (led & ALARM_LED_RED)
 	{
 		HAL_GPIO_WritePin (LED_RED_GPIO_Port, LED_RED_Pin, state);
 	}
-	if (alrm_led & ALARM_LED_BLUE)
+	if (led & ALARM_LED_BLUE)
 	{
 		HAL_GPIO_WritePin (LED_BLUE_GPIO_Port, LED_BLUE_Pin, state);
 	}
-	if (alrm_led & ALARM_LED_GREEN)
+	if (led & ALARM_LED_GREEN)
 	{
 		HAL_GPIO_WritePin (LED_GREEN_GPIO_Port, LED_GREEN_Pin, state);
 	}
@@ -266,7 +269,7 @@ static void PingLoop_thread (
 {
 	uint32_t  ticks;
 	osStatus_t err;
-	ping_struc_t ping_data;
+	ping_struc_t *pPing_data = (ping_struc_t *)arg;
 	reply_struc_t ping_res = {0};
 
 	Ping_res.ping_cnt = 0;
@@ -275,19 +278,17 @@ static void PingLoop_thread (
 	Ping_res.lost = 0;
 	Ping_res.alarm_cnt = 0;
 	Alarm = 0;
-	SwitchLeds (0);
+	SwitchLeds (alrm_led, 0);
 
-
-	mid_PingRes = osMessageQueueNew (2, sizeof(reply_struc_t), NULL);
+	mid_PingRes = osMessageQueueNew (2, sizeof (reply_struc_t), NULL);
 	vQueueAddToRegistry (mid_PingRes, "mid_PingRes");
 
 	sid_PingReady = osSemaphoreNew (1, 0, NULL);
     vQueueAddToRegistry (sid_PingReady, "sid_PingReady");
-	osMessageQueueGet (mid_PingData, &ping_data, NULL, osWaitForever);
-	for (uint32_t i = 0; i < ping_data.n_pings; i++)
+	for (uint32_t i = 0; i < pPing_data->n_pings; i++)
 	{
 		ticks = sys_now();
-		PingHandle = StartOnePing ((void *)&(ping_data.ip_host));
+		PingHandle = StartOnePing ((void *)&(pPing_data->ip_host));
 #ifdef DEBUG_PING_PROC
 		PRINTF("PingLoopThread: Ping %d\r\n\n", Ping_res.ping_cnt);
 #endif
@@ -319,14 +320,16 @@ static void PingLoop_thread (
 }
 
 
-osThreadId_t StartPings (void)
+osThreadId_t StartPings (
+						void *arg
+						)
 {
     const osThreadAttr_t PingLoopTask_attributes = {
         .name = "PingLoopTask",
         .stack_size = 3*512,
         .priority = (osPriority_t) osPriorityNormal,
     };
-    return osThreadNew(PingLoop_thread, NULL, &PingLoopTask_attributes);
+    return osThreadNew(PingLoop_thread, arg, &PingLoopTask_attributes);
 }
 
 
@@ -348,12 +351,12 @@ void StopPing (void)
 static void StartSignal (void)
 {
 	// switch leds
-	SwitchLeds (1);
+	SwitchLeds (alrm_led, 1);
 
 	// send e-mail
 	if (email_is_OK)
 	{
-		SendEmail ();
+		RunAppClient (SMTP_PROT);
 	}
 
 	// send telegram message: tg_send_message ()

@@ -9,7 +9,7 @@
 #define INC_SETTINGS_PROC_H_
 
 //#include "ping_process.h"
-#include "console_uart.h"
+//#include "console_uart.h"
 
 #include "main.h"
 #include "cmsis_os.h"

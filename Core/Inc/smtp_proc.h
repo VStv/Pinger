@@ -8,8 +8,6 @@
 #ifndef INC_SMTP_PROC_H_
 #define INC_SMTP_PROC_H_
 
-#include "tcp_proc.h"
-#include "console_uart.h"
 
 #include "main.h"
 #include "cmsis_os.h"
@@ -24,6 +22,8 @@
 #include <stdlib.h>
 
 
+#define SMTP_SERVER_PORT		25
+#define SMTP_SERVER_ADDR		"192.168.10.11"
 
 
 
@@ -41,12 +41,11 @@ enum smtp_session_state {
   SMTP_DATA,
   SMTP_BODY,
   SMTP_QUIT,
-  SMTP_CLOSED
 };
 
 
-
-void SendEmail (void);
+void SmtpProcess (void *);
+//-----------------------------
 void StartSmtpClient (void *);
 
 

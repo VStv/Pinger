@@ -12,20 +12,19 @@ char 						ssid_str[10];
 char						psw_str[10];
 
 
+
+
 extern char					alrm_email_str[15];
 extern char					alrm_telega_str[15];
 extern uint8_t				alrm_unrepl;
 extern uint8_t				alrm_led;
 extern reply_struc_t 		Ping_res;
 extern osThreadId_t 		PingLoopHandle;
-extern osMessageQueueId_t 	mid_PingData;
 extern uint32_t				email_is_OK;
-extern char 				*pp;
 extern ip4_addr_t 			ipaddr;
 extern ip4_addr_t 			netmask;
 extern ip4_addr_t 			gw;
 extern uint8_t				static_ip;
-extern osThreadId_t 		TcpServerTaskHandle;
 
 const char 			*str_list[12] = {"ipa1=", "ipa2=", "ipa3=", "ipa4=",
 									"ipm1=", "ipm2=", "ipm3=", "ipm4=",
@@ -39,11 +38,14 @@ const char			PAGE_HEADER_CONTENT_TEXT[] = "Content-type: text/html\r\n\r\n";
 
 
 
-void RunHttpServer (void)
-{
-	uint32_t app = HTTP_PROT;
-	TcpServerTaskHandle = StartTcpServer ((void *)&app);
-}
+
+//void SetHttpServerData (pTcpServer)
+//{
+//	pTcpServer->port = HTTP_SERVER_PORT;
+//	pTcpServer->application = HttpProcess;
+//}
+
+
 
 
 static uint32_t ParseNetsetting	(
@@ -411,6 +413,7 @@ static void ResponseToGetdata	(
 	strcat (pdat, s1);
 }
 
+
 void HttpProcess 	(
 					void *arg
 					)
@@ -422,7 +425,7 @@ void HttpProcess 	(
 	struct fs_file file;
 	set_struc_t ipSettings;
 	alrm_struct_t Alarms_struc;
-	ping_struc_t pingSettings;
+	static ping_struc_t pingSettings;
 
 	FlashReadBuf ((uint8_t *)ssid_str, FLASH_WIFISSID_ADDR, FLASH_WIFISSID_SIZE);
 	FlashReadBuf ((uint8_t *)psw_str, FLASH_WIFIPSW_ADDR, FLASH_WIFIPSW_SIZE);
@@ -440,83 +443,82 @@ void HttpProcess 	(
 	Alarms_struc.led = &alrm_led;
 
 	// Check if request to get the index.html
-	if (strncmp((char const *)data, "GET /index.html", 15)==0 || strncmp((char const *)data, "GET / ", 6)==0)
+	if (strncmp ((const char*)data, "GET /index.html", 15)==0 || strncmp ((const char*)data, "GET / ", 6)==0)
 	{
-		fs_open(&file, "/index.html");
-		wbuf = pvPortMalloc(file.len);
+		fs_open (&file, "/index.html");
+		wbuf = pvPortMalloc (file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
-		fs_close(&file);
+		fs_close (&file);
 	}
-	else if (strncmp((char const *)data, "GET /alarms.html", 16)==0)
+	else if (strncmp ((const char*)data, "GET /alarms.html", 16)==0)
 	{
-		fs_open(&file, "/alarms.html");
-		wbuf = pvPortMalloc(file.len);
+		fs_open (&file, "/alarms.html");
+		wbuf = pvPortMalloc (file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
-		fs_close(&file);
+		fs_close (&file);
 	}
-	else if (strncmp((char const *)data, "GET /ping.html", 14)==0)
+	else if (strncmp ((const char*)data, "GET /ping.html", 14) == 0)
 	{
-		fs_open(&file, "/ping.html");
-		wbuf = pvPortMalloc(file.len);
+		fs_open (&file, "/ping.html");
+		wbuf = pvPortMalloc (file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
-		fs_close(&file);
+		fs_close (&file);
 	}
-	else if (strncmp((char const *)data, "GET /style.css", 14)==0)
+	else if (strncmp ((const char*)data, "GET /style.css", 14) == 0)
 	{
-		fs_open(&file, "/style.css");
-		wbuf = pvPortMalloc(file.len);
+		fs_open (&file, "/style.css");
+		wbuf = pvPortMalloc (file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
-		fs_close(&file);
+		fs_close (&file);
 	}
-	else if (strncmp((char const *)data, "GET /myScript.js", 16)==0)
+	else if (strncmp ((const char*)data, "GET /myScript.js", 16) == 0)
 	{
-		fs_open(&file, "/myScript.js");
-		wbuf = pvPortMalloc(file.len);
+		fs_open (&file, "/myScript.js");
+		wbuf = pvPortMalloc (file.len);
 		memcpy (wbuf, (char *)file.data, file.len);
-		fs_close(&file);
+		fs_close (&file);
 	}
-	else if (strncmp((char const *)data, "GET /setconfig?", 15)==0)
+	else if (strncmp ((const char*)data, "GET /setconfig?", 15) == 0)
 	{
 		if (ParseNetsetting (data+15, &ipSettings) == 0)
 		{
 			// save and set flag for reset
 			SaveToFlash (&ipSettings);
 		}
-		wbuf = pvPortMalloc(200);
+		wbuf = pvPortMalloc (200);
 		sprintf (wbuf, "%s\r\n", PAGE_HEADER_200_OK);
 	}
-	else if (strncmp((char const *)data, "GET /setalarm?", 14)==0)
+	else if (strncmp ((const char*)data, "GET /setalarm?", 14)==0)
 	{
 		ParseAlarms (data+14, &Alarms_struc);
-		wbuf = pvPortMalloc(200);
+		wbuf = pvPortMalloc (200);
 		sprintf (wbuf, "%s\r\n", PAGE_HEADER_200_OK);
 	}
-	else if (strncmp((char const *)data, "GET /start?", 11)==0)
+	else if (strncmp ((const char*)data, "GET /start?", 11) == 0)
 	{
 		if (PingLoopHandle == NULL)
 		{
 			if (ParsePingRequest (data+11, &pingSettings) == 0)
 			{
-				osMessageQueuePut(mid_PingData, &pingSettings, 0U, 0U);
-				PingLoopHandle = StartPings ();
-				wbuf = pvPortMalloc(200);
+				PingLoopHandle = StartPings ((void *)&pingSettings);
+				wbuf = pvPortMalloc (200);
 				sprintf (wbuf, "%s%s", PAGE_HEADER_200_OK, PAGE_HEADER_CONTENT_TEXT);
 				strcat (wbuf, "state=OK");
 			}
 		}
 		else
 		{
-			wbuf = pvPortMalloc(200);
+			wbuf = pvPortMalloc (200);
 			sprintf (wbuf, "%s%s", PAGE_HEADER_200_OK, PAGE_HEADER_CONTENT_TEXT);
 			strcat (wbuf, "state=BUSY");
 		}
 	}
-	else if (strncmp((char const *)data, "GET /stop", 9)==0)
+	else if (strncmp ((const char*)data, "GET /stop", 9) == 0)
 	{
 		if (PingLoopHandle != NULL)
 		{
 			StopPing ();
-			wbuf = pvPortMalloc(200);
+			wbuf = pvPortMalloc (200);
 			ResponseToGetdata (&Ping_res, wbuf);
 		}
 		else
@@ -526,17 +528,17 @@ void HttpProcess 	(
 			strcat (wbuf, "state=ERROR");
 		}
 	}
-	else if (strncmp ((char const *)data, "GET /getconfig", 14) == 0)
+	else if (strncmp ((const char*)data, "GET /getconfig", 14) == 0)
 	{
 		wbuf = pvPortMalloc (200);
 		ResponseToGetconfig (&ipSettings, wbuf);
 	}
-	else if (strncmp ((char const *)data, "GET /getalarms", 14) == 0)
+	else if (strncmp ((const char*)data, "GET /getalarms", 14) == 0)
 	{
 		wbuf = pvPortMalloc (200);
 		ResponseToGetalarms (&Alarms_struc, wbuf);
 	}
-	else if (strncmp ((char const *)data, "GET /getdata", 12) == 0)
+	else if (strncmp ((const char*)data, "GET /getdata", 12) == 0)
 	{
 		// update Ping_res from message
 
@@ -553,5 +555,11 @@ void HttpProcess 	(
 	pRW_data->w_data = wbuf;
 	return;
 }
+
+
+
+
+
+
 
 
