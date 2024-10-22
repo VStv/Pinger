@@ -41,7 +41,6 @@ enum smtp_session_state {
   SMTP_DATA,
   SMTP_BODY,
   SMTP_QUIT,
-  SMTP_CLOSED
 };
 
 

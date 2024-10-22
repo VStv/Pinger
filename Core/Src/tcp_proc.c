@@ -26,10 +26,6 @@ uint32_t time1, wait_time;
 
 extern char 				*pp;
 
-//->->->->->->->->->->->->->->->->->->->->->->->->
-extern osMessageQueueId_t 	mid_PingData;
-//->->->->->->->->->->->->->->->->->->->->->->->->
-
 
 //---------------------------------------------------------------------------------------
 static void TcpConn_thread 	(
@@ -173,11 +169,6 @@ osThreadId_t StartTcpServer (
 {
 	uint32_t app = *(uint32_t *)arg;
 	net_struct_t *pTcpServer = &TcpServerStruct;
-
-//->->->->->->->->->->->->->->->->->->->->->->->->
-	mid_PingData = osMessageQueueNew (1, sizeof(ping_struc_t), NULL);
-	vQueueAddToRegistry (mid_PingData, "mid_PingData");
-//->->->->->->->->->->->->->->->->->->->->->->->->
 
 	switch (app)
 	{
@@ -337,6 +328,9 @@ static void TcpClient_thread	(
 #ifdef DEBUG_TCP_PROC
 			PRINTF ("TcpClientThread: Receive error\r\n\n");
 #endif
+			// smtp_status <- 0
+			RW_data.r_data = NULL;
+			pTcpClient->application ((void *)&RW_data);
 			break;
 		}
 	}

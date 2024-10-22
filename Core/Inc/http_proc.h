@@ -40,11 +40,6 @@ typedef struct
 } alrm_struct_t;
 
 
-//typedef struct
-//{
-//	char 			*r_data;
-//	char	 		*w_data;
-//} data_struct_t;
 
 
 void RunHttpServer (void);

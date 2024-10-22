@@ -8,8 +8,7 @@
 #ifndef INC_PING_PROC_H_
 #define INC_PING_PROC_H_
 
-#include "console_uart.h"
-#include "smtp_proc.h"
+//#include "console_uart.h"
 
 #include "main.h"
 #include "cmsis_os.h"
@@ -62,7 +61,7 @@ typedef struct
 
 
 
-osThreadId_t StartPings (void);
+osThreadId_t StartPings (void *);
 void StopPing (void);
 void GetPingRes (void);
 
