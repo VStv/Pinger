@@ -8,16 +8,12 @@
 #ifndef INC_SETTINGS_PROC_H_
 #define INC_SETTINGS_PROC_H_
 
-//#include "ping_process.h"
-//#include "console_uart.h"
 
 #include "main.h"
 #include "cmsis_os.h"
 
 
 #include "lwip.h"
-
-
 
 
 #include "queue.h"
@@ -53,7 +49,7 @@
 
 
 
-typedef struct
+struct set_struc
 {
 	uint8_t 		*ip_mode;
 	ip4_addr_t 		*ipa;
@@ -61,8 +57,9 @@ typedef struct
 	ip4_addr_t 		*ipg;
 	char 			*ssid;
 	char			*psw;
-} set_struc_t;
+};
 
+typedef struct set_struc set_struc_t;
 
 
 void FlashReadBuf (uint8_t *, uint32_t, uint32_t);

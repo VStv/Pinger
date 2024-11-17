@@ -55,16 +55,20 @@
 #define LWIP_DHCP 1
 /*----- Default value in ETH configuration GUI in CubeMx: 1524 -----*/
 #define ETH_RX_BUFFER_SIZE 1536
-/*----- Default Value for LWIP_DNS: 0 ---*/
+/*----- Value in opt.h for LWIP_DNS: 0 -----*/
 #define LWIP_DNS 1
+/*----- Value in opt.h for LWIP_TCP: 1 -----*/
+#define LWIP_TCP 1
 /*----- Default Value for MEMP_NUM_TCP_PCB: 5 ---*/
-#define MEMP_NUM_TCP_PCB 8
+#define MEMP_NUM_TCP_PCB 10
 /*----- Value in opt.h for MEM_ALIGNMENT: 1 -----*/
 #define MEM_ALIGNMENT 4
 /*----- Default Value for MEM_SIZE: 1600 ---*/
 #define MEM_SIZE 130000
 /*----- Default Value for H7 devices: 0x30044000 -----*/
 #define LWIP_RAM_HEAP_POINTER 0x30020200
+/*----- Value in opt.h for MEMP_NUM_SYS_TIMEOUT: (LWIP_TCP + IP_REASSEMBLY + LWIP_ARP + (2*LWIP_DHCP) + LWIP_AUTOIP + LWIP_IGMP + LWIP_DNS + (PPP_SUPPORT*6*MEMP_NUM_PPP_PCB) + (LWIP_IPV6 ? (1 + LWIP_IPV6_REASS + LWIP_IPV6_MLD) : 0)) -*/
+#define MEMP_NUM_SYS_TIMEOUT 6
 /*----- Default Value for MEMP_NUM_NETBUF: 2 ---*/
 #define MEMP_NUM_NETBUF 4
 /*----- Default Value for MEMP_NUM_NETCONN: 4 ---*/
@@ -76,19 +80,23 @@
 /*----- Value supported for H7 devices: 1 -----*/
 #define LWIP_SUPPORT_CUSTOM_PBUF 1
 /*----- Default Value for PBUF_POOL_BUFSIZE: 592 ---*/
-#define PBUF_POOL_BUFSIZE 1592
+#define PBUF_POOL_BUFSIZE 1528
 /*----- Value in opt.h for LWIP_ETHERNET: LWIP_ARP || PPPOE_SUPPORT -*/
 #define LWIP_ETHERNET 1
 /*----- Default Value for LWIP_RAW: 0 ---*/
 #define LWIP_RAW 1
 /*----- Value in opt.h for LWIP_DNS_SECURE: (LWIP_DNS_SECURE_RAND_XID | LWIP_DNS_SECURE_NO_MULTIPLE_OUTSTANDING | LWIP_DNS_SECURE_RAND_SRC_PORT) -*/
 #define LWIP_DNS_SECURE 7
-/*----- Default Value for TCP_WND: 2880 ---*/
-#define TCP_WND 4096
+/*----- Default Value for TCP_WND: 5840 ---*/
+#define TCP_WND 2920
 /*----- Default Value for TCP_MSS: 536 ---*/
-#define TCP_MSS 720
-/*----- Default Value for TCP_SND_BUF: 1440 ---*/
-#define TCP_SND_BUF 1840
+#define TCP_MSS 1460
+/*----- Default Value for TCP_SND_BUF: 2920 ---*/
+#define TCP_SND_BUF 4*1460
+/*----- Default Value for TCP_SNDLOWAT: -1 ---*/
+#define TCP_SNDLOWAT 2921
+/*----- Value in opt.h for TCP_SNDQUEUELOWAT: LWIP_MAX(TCP_SND_QUEUELEN)/2, 5) -*/
+#define TCP_SNDQUEUELOWAT 5
 /*----- Value in opt.h for LWIP_NETIF_LINK_CALLBACK: 0 -----*/
 #define LWIP_NETIF_LINK_CALLBACK 1
 /*----- Value in opt.h for TCPIP_THREAD_STACKSIZE: 0 -----*/
@@ -115,32 +123,14 @@
 #define DEFAULT_ACCEPTMBOX_SIZE 6
 /*----- Default Value for LWIP_TCP_KEEPALIVE: 0 ---*/
 #define LWIP_TCP_KEEPALIVE 1
- /*----- Default Value for LWIP_TCPIP_TIMEOUT: 0 ---*/
-		#define LWIP_TCPIP_TIMEOUT 1
- 	 	/*----- Default Value for LWIP_SO_RCVTIMEO: 0 ---*/
+/*----- Default Value for LWIP_SO_RCVTIMEO: 0 ---*/
 #define LWIP_SO_RCVTIMEO 1
 /*----- Value in opt.h for RECV_BUFSIZE_DEFAULT: INT_MAX -----*/
 #define RECV_BUFSIZE_DEFAULT 2000000000
-/*----- Default Value for LWIP_USE_EXTERNAL_MBEDTLS: 0 ---*/
+/*----- Value in opt.h for LWIP_USE_EXTERNAL_MBEDTLS: 0 -----*/
 #define LWIP_USE_EXTERNAL_MBEDTLS 1
-/*----- Default Value for LWIP_INCLUDED_POLARSSL_MD5: 0 ---*/
-#define LWIP_INCLUDED_POLARSSL_MD5 1
-/*----- Default Value for LWIP_INCLUDED_POLARSSL_MD4: 0 ---*/
-#define LWIP_INCLUDED_POLARSSL_MD4 1
-/*----- Default Value for LWIP_INCLUDED_POLARSSL_SHA1: 0 ---*/
-#define LWIP_INCLUDED_POLARSSL_SHA1 1
-/*----- Default Value for LWIP_INCLUDED_POLARSSL_DES: 0 ---*/
-#define LWIP_INCLUDED_POLARSSL_DES 1
-/*----- Default Value for LWIP_INCLUDED_POLARSSL_ARC4: 0 ---*/
-#define LWIP_INCLUDED_POLARSSL_ARC4 1
 /*----- Default Value for LWIP_HTTPD: 0 ---*/
 #define LWIP_HTTPD 1
-/*----- Value in opt.h for HTTPD_USE_CUSTOM_FSDATA: 0 -----*/
-#define HTTPD_USE_CUSTOM_FSDATA 0
-/*----- Default Value for LWIP_SNTP: 0 ---*/
-#define LWIP_SNTP 1
-/*----- Default Value for LWIP_SMTP: 0 ---*/
-#define LWIP_SMTP 1
 /*----- Value in opt.h for LWIP_STATS: 1 -----*/
 #define LWIP_STATS 0
 /*----- Value in opt.h for CHECKSUM_GEN_IP: 1 -----*/

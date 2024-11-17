@@ -8,10 +8,8 @@
 #ifndef INC_TCP_PROC_H_
 #define INC_TCP_PROC_H_
 
-#include "smtp_proc.h"
-#include "http_proc.h"
-
 #include "main.h"
+
 #include "cmsis_os.h"
 #include "lwip.h"
 
@@ -27,7 +25,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-
+#include "smtp_proc.h"
+#include "http_proc.h"
 
 
 #define TCP_CONNECTION_MAX 		4
@@ -37,21 +36,22 @@
 typedef	void (*app_func) (void *);
 
 
-typedef struct {
+struct conn_struct {
 	struct netconn 	*conn;
 	char 			number;
-} conn_struct_t;
+};
 
+typedef struct conn_struct conn_struct_t;
 
-typedef struct {
+struct net_struct {
 	ip_addr_t		ip;
 	uint16_t		port;
 	app_func		application;
 	osThreadId_t	*app_id;
 	osSemaphoreId_t	*sem_app_cplt;
-} net_struct_t;
+};
 
-
+typedef struct net_struct net_struct_t;
 
 
 osThreadId_t StartTcpServer (void *);

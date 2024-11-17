@@ -11,9 +11,6 @@
 char 						ssid_str[10];
 char						psw_str[10];
 
-
-
-
 extern char					alrm_email_str[15];
 extern char					alrm_telega_str[15];
 extern uint8_t				alrm_unrepl;
@@ -35,15 +32,6 @@ const char 			*str_list2[4] = {"hipa1=", "hipa2=", "hipa3=", "hipa4="};
 const char			PAGE_HEADER_200_OK[] = "HTTP/1.1 200 OK\r\n";
 const char			PAGE_HEADER_CONTENT_TEXT[] = "Content-type: text/html\r\n\r\n";
 
-
-
-
-
-//void SetHttpServerData (pTcpServer)
-//{
-//	pTcpServer->port = HTTP_SERVER_PORT;
-//	pTcpServer->application = HttpProcess;
-//}
 
 
 
@@ -555,11 +543,5 @@ void HttpProcess 	(
 	pRW_data->w_data = wbuf;
 	return;
 }
-
-
-
-
-
-
 
 
