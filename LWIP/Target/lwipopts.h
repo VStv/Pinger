@@ -153,6 +153,8 @@
 /* USER CODE BEGIN 1 */
 #undef LWIP_PROVIDE_ERRNO
 #define LWIP_ERRNO_STDINCLUDE
+
+#define SO_REUSE 1
 /* USER CODE END 1 */
 
 #ifdef __cplusplus

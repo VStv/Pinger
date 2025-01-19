@@ -25,9 +25,10 @@
 
 #include <string.h>
 
+#include "console_uart.h"
 
 
-
+//#define DEBUG_PING_PROC
 
 #define ALARM_LED_RED			(1<<0)
 #define ALARM_LED_BLUE			(1<<1)
@@ -39,16 +40,14 @@
 #define PING_DELAY     			1000
 
 
-struct ping_struc
+typedef struct ping_struc
 {
 	ip4_addr_t 		ip_host;
 	uint16_t		n_pings;
-};
-
-typedef struct ping_struc ping_struc_t;
+} ping_struc_t;
 
 
-struct reply_struc
+typedef struct reply_struc
 {
 	uint16_t		ping_cnt;
 	uint16_t		ttl;
@@ -58,9 +57,8 @@ struct reply_struc
 	uint16_t		lost;
 	uint16_t		alarm_cnt;
 	uint16_t		status;
-};
+} reply_struc_t;
 
-typedef struct reply_struc reply_struc_t;
 
 osThreadId_t StartPings (void *);
 void StopPing (void);

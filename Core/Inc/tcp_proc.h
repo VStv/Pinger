@@ -28,7 +28,10 @@
 #include "smtp_proc.h"
 #include "http_proc.h"
 
+#include "console_uart.h"
 
+
+//#define DEBUG_TCP_PROC
 #define TCP_CONNECTION_MAX 		4
 
 
@@ -36,22 +39,20 @@
 typedef	void (*app_func) (void *);
 
 
-struct conn_struct {
+typedef struct conn_struct {
 	struct netconn 	*conn;
 	char 			number;
-};
+} conn_struct_t;
 
-typedef struct conn_struct conn_struct_t;
 
-struct net_struct {
+typedef struct net_struct {
 	ip_addr_t		ip;
 	uint16_t		port;
 	app_func		application;
 	osThreadId_t	*app_id;
 	osSemaphoreId_t	*sem_app_cplt;
-};
+} net_struct_t;
 
-typedef struct net_struct net_struct_t;
 
 
 osThreadId_t StartTcpServer (void *);

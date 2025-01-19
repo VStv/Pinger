@@ -31,20 +31,20 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "debug_macro.h"
-#include "console_uart.h"
+//#include "debug_macro.h"
+//#include "console_uart.h"
 
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-struct data_struct
+typedef struct data_struct
 {
 	char 			*r_data;
 	char	 		*w_data;
-};
+} data_struct_t;
 
-typedef struct data_struct data_struct_t;
+
 
 /* USER CODE END ET */
 

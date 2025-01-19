@@ -31,8 +31,6 @@ void SmtpProcess 	(
 	char *wbuf, *data;
 	data = pRW_data->r_data;
 	static enum smtp_session_state s_smtp_state = SMTP_NULL;
-//	const char *ipa = ipaddr_ntoa(altcp_get_ip(pcb, 1));
-//	ipa_len = strlen(ipa);
 
 	if (data)
 	{

@@ -24,7 +24,11 @@ uint8_t				alrm_led;
 
 uint32_t			email_is_OK;
 
+#ifdef DEBUG_PING_PROC
 extern char 				*pp;
+#endif
+
+
 
 extern void RunAppClient (uint32_t);
 

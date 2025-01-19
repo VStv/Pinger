@@ -22,23 +22,28 @@
 
 #include "lwip/apps/fs.h"
 
+//#include "console_uart.h"
+
+
 #include "queue.h"
 #include <string.h>
 #include <stdlib.h>
 
 
 #define HTTP_SERVER_PORT		80
+#define HTTPS_SERVER_PORT		443
 
 
-struct alrm_struct
+
+typedef struct alrm_struct
 {
 	uint8_t 		*unrepl;
 	char 			*email;
 	char	 		*telega;
 	uint8_t 		*led;
-};
+} alrm_struct_t;
 
-typedef struct alrm_struct alrm_struct_t;
+
 
 
 void RunHttpServer (void);

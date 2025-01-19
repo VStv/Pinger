@@ -19,7 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-#include "mbedtls.h"
+//#include "mbedtls.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -133,7 +133,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_RNG_Init();
   /* Call PreOsInit function */
-  MX_MBEDTLS_Init();
+//  MX_MBEDTLS_Init();
   /* USER CODE BEGIN 2 */
   // Reset IP-settings if button pressed 2 sec.
   	uint32_t tickstart = HAL_GetTick();
@@ -411,7 +411,7 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
 	/* init code for LWIP */
-	MX_LWIP_Init();
+	  MX_LWIP_Init();
 
 	  ConsoleTaskHandle = StartConsoleTask();
 	  UartRxTaskHandle = StartUartRxTask();

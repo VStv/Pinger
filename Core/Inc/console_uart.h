@@ -36,5 +36,6 @@ void GetUartRxData (uint16_t);
 								LoadToConsole (pp); \
 								vPortFree (pp)
 
+#define NOPRINT(args...)
 
 #endif /* _CONSOLE_UART_ */

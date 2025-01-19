@@ -49,7 +49,7 @@
 
 
 
-struct set_struc
+typedef struct set_struc
 {
 	uint8_t 		*ip_mode;
 	ip4_addr_t 		*ipa;
@@ -57,9 +57,8 @@ struct set_struc
 	ip4_addr_t 		*ipg;
 	char 			*ssid;
 	char			*psw;
-};
+} set_struc_t;
 
-typedef struct set_struc set_struc_t;
 
 
 void FlashReadBuf (uint8_t *, uint32_t, uint32_t);

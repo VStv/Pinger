@@ -23,11 +23,11 @@ osSemaphoreId_t 	sid_Connected = NULL;
 
 #ifdef DEBUG_TCP_PROC
 uint32_t time1, wait_time;
+extern char 				*pp;
 #endif
 
 
 
-extern char 				*pp;
 
 
 //---------------------------------------------------------------------------------------
