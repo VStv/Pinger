@@ -17,17 +17,7 @@
 
 
 #include "mbedtls.h"
-
-//#include "mbedtls/ssl.h"
-//#include "mbedtls/entropy.h"
-//#include "mbedtls/ctr_drbg.h"
-
-
-#include "mbedtls/certs.h"
 #include "mbedtls/net_sockets.h"
-
-//#include "mbedtls/x509.h"
-//#include "mbedtls/error.h"
 
 
 #include "tcp_proc.h"
@@ -52,53 +42,55 @@
 
 #define SERVER_SERT																\
 		"-----BEGIN CERTIFICATE-----\r\n"										\
-		"MIIDBDCCAeygAwIBAgIUGZIIJoEY/S7KolPdQfv1ZTPXCEkwDQYJKoZIhvcNAQEL\r\n"	\
-		"BQAwIDEeMBwGA1UEAwwVQ2VydGlmaWNhdGUgYXV0aG9yaXR5MB4XDTI1MDExNTA4\r\n"	\
-		"MTEyN1oXDTI2MDExNTA4MTEyN1owFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjAN\r\n"	\
-		"BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAquReoudvT23pkBSm6pqZq2rIf3az\r\n"	\
-		"CJK3szs3nQzPCuP3vEpZ6U+3OecFhACB+vM2KHxc6c+MH/BAi2UuNqXiVGO0gjdj\r\n"	\
-		"6o8WJm94ggkUAkZAxTwx1+Zn5WJ8iDColjGOLmy+lukyBVVP96i3NRVUk2Z7qFiu\r\n"	\
-		"19MjPJ7Ikw3C0amuV67IiojhSTLCPcJORk7M/2x6VA1lZlHxsPfHKnfHTdUdCSh7\r\n"	\
-		"cgGuIyoLN1B/CndI3QSb2w8IiJflbiutORiWCpIbmCQCGtzLqKqcJZYFa6hu0rNa\r\n"	\
-		"v74o2F2n66jeD0No9j7nNKlxkdgMLKh211kPQ/DYGGLtaz5iWM13MKQWuwIDAQAB\r\n"	\
-		"o0IwQDAdBgNVHQ4EFgQUzthPxU0rP7u9GmIS2dE3+GY+t3gwHwYDVR0jBBgwFoAU\r\n"	\
-		"GscY553tcBU9fkmVU7u54WQLe8kwDQYJKoZIhvcNAQELBQADggEBACmX5KEP0f5p\r\n"	\
-		"QWHsdRQLeha78cPshctnrg0vkeA31Rou1O8O6mmx43y35nF7d6LZPUN1U3OXKKFN\r\n"	\
-		"lH9106oZUWVGvSEaqyQY6Kg7iAla9Y9kNs94Gy1SQVuPw3BJDnogICbPZoOj5jk7\r\n"	\
-		"pbUX/CeadhZ032TSo3WDBdlUAIiogLqR0JsNiyTOw9ft/lmQX3/kuszibvSJkxSM\r\n"	\
-		"VLKZR0Rx7xMoAkWFNOPqqFrgI5p2z2xdqTz+OG+QBdDJs/zbXdYlRYOoWElDhOU3\r\n"	\
-		"JXhUggYODAMStfm6vpisXttUSisoz+SzWjYad3sh2svwSVqok3gkoCjqayqOsSiV\r\n"	\
-		"UdsirqwKX3c=\r\n"														\
+		"MIIDIDCCAgigAwIBAgIUGZIIJoEY/S7KolPdQfv1ZTPXCE8wDQYJKoZIhvcNAQEL\r\n"	\
+		"BQAwIDEeMBwGA1UEAwwVQ2VydGlmaWNhdGUgYXV0aG9yaXR5MB4XDTI1MDIwNDE0\r\n"	\
+		"MDMxOFoXDTI2MDIwNDE0MDMxOFowFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjAN\r\n"	\
+		"BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkozKhzUhq6nd0ik84SRoIAKlaN+E\r\n"	\
+		"a+K1PPOfC3ibockFqBXpbXlmIhet1So7L4yIL4Yx8jVpNHNXLfkctjMRSgyhDxoT\r\n"	\
+		"1VqLUP5Ks6vKLL1SQAbQHFe/m0In+u+V2zYekRpfiO+vzdJobAqYO9eIM+6Trc1x\r\n"	\
+		"iEGGbZfz6E95ldSX+swYd4uMkuOtWsvFH7Ns2WXNvvCc73JcnkyaWI7SlnlhSn8K\r\n"	\
+		"1Cf+LSdfr+OdjmAHnxPNSC1dEm9qwQ+KQymCbN0wkWXA/3SRcNtfDJt9/dG58P2w\r\n"	\
+		"pCskKNbR9Lved3C7Lowc+EZ0ic60dlSDe/KJWw+3K82+/nVfx0Hba9MOcQIDAQAB\r\n"	\
+		"o14wXDAaBgNVHREEEzARgglsb2NhbGhvc3SHBMCoCgkwHQYDVR0OBBYEFNMTxfRN\r\n"	\
+		"cod2V6OH8hBuQ/GMtMQWMB8GA1UdIwQYMBaAFBrHGOed7XAVPX5JlVO7ueFkC3vJ\r\n"	\
+		"MA0GCSqGSIb3DQEBCwUAA4IBAQCfee1boh/kHcQO2WkfRSFL7vtMZHiFWGXaYQmn\r\n"	\
+		"sX20vfLhmUVEKKzbhsVZ5KcnSgzK7BV9g0ar+EoprOHA4gww14N6KyjyPcSCGEq0\r\n"	\
+		"+RZEOIN+/4rK4jn4hTNri2ICUi2WSrEllJ6at/i+EnhhBvY5Xjtm6rXqJZfG+0tc\r\n"	\
+		"DxSEnGL1ff9TcjE+CBHIZysvHVDkYo56+XsRUtdqSVvYzbyXvn/qaALeQ8CqWUPe\r\n"	\
+		"ctuq5tNAFT3rmkQdvP/SPyiX8QMIas9LRpKkQeUUnGWO70AY222MIy+CT2a4a1nj\r\n"	\
+		"IKV69zWYa6lnQQdi5+GYZ+RkoVeAAdWI/WTpPaaAFaSffjNn\r\n"					\
 		"-----END CERTIFICATE-----\r\n"
+
 
 #define SERVER_SERT_KEY															\
 		"-----BEGIN RSA PRIVATE KEY-----\r\n"									\
-		"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\r\n"				\
+		"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\r\n"				\
 		"-----END RSA PRIVATE KEY-----\r\n"
+
 
 
 osThreadId_t StartTlsServer (void *);
