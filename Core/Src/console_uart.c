@@ -45,7 +45,7 @@ void ConsoleFree (void)
 
 static void ConsoleTask (void * argument)
 {
-    mid_ConsoleData = osMessageQueueNew (8, sizeof(strng1), NULL);
+    mid_ConsoleData = osMessageQueueNew (10, sizeof(strng1), NULL);
     vQueueAddToRegistry (mid_ConsoleData, "mid_ConsoleData");
     sid_ConsoleUartReady = osSemaphoreNew (1, 0, NULL);
     vQueueAddToRegistry (sid_ConsoleUartReady, "sid_ConsoleUartReady");

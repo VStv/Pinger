@@ -14,13 +14,12 @@ net_struct_t					TlsServerStruct;
 mbedtls_x509_crt 				srvcert;
 mbedtls_pk_context 				pkey;
 
-static mbedtls_net_context 		listen_fd, client_fd;
+//static mbedtls_net_context 		listen_fd, client_fd;
 static uint8_t 					buf[1024];
 
 
 extern mbedtls_ssl_context 		ssl;
 extern mbedtls_ssl_config 		conf;
-//extern mbedtls_x509_crt 		cert;
 extern mbedtls_ctr_drbg_context ctr_drbg;
 extern mbedtls_entropy_context 	entropy;
 
@@ -30,7 +29,7 @@ extern char 					*pp;
 
 
 static const char *pers = "ssl_server";
-/**/
+
 const char serv_cert[] = SERVER_SERT;
 const size_t serv_cert_len = sizeof (serv_cert);
 const char serv_key[] = SERVER_SERT_KEY;
@@ -53,17 +52,24 @@ static void TlsServer_thread 	(
 	net_struct_t *pTlsServer = (net_struct_t *)arg;
 	int ret = 1, len;
 	char port_buf[10];
+	char client_adr[14];
+	size_t len_ip;
+	mbedtls_net_context 		listen_fd, client_fd;
 
 	MX_MBEDTLS_Init();
 	listen_fd.fd = -1;
 	client_fd.fd = -1;
 	mbedtls_pk_init( &pkey );
 
+#ifdef DEBUG_TLS_PROC
+	uint8_t deb_var = 0;
+	PRINTF("connection = %d\r\n", deb_var);
+#endif
+
 	// 1. Load the certificates and private RSA key
 #ifdef DEBUG_TLS_PROC
 	PRINTF("TlsServerThread: Loading the certificate ... ");
 #endif
-//	ret = mbedtls_x509_crt_parse (&srvcert, (const unsigned char*) mbedtls_google_root_certificate, mbedtls_google_root_certificate_len);
 	ret = mbedtls_x509_crt_parse (&srvcert, (const unsigned char*) serv_cert, serv_cert_len);
 	if (ret != 0)
 	{
@@ -72,7 +78,6 @@ static void TlsServer_thread 	(
 #endif
 		goto exit;
 	}
-
 	ret =  mbedtls_pk_parse_key (&pkey, (const unsigned char *) serv_key, serv_key_len, NULL, 0);
 	if ( ret != 0 )
 	{
@@ -147,13 +152,13 @@ static void TlsServer_thread 	(
 	PRINTF("ok\r\n");
 #endif
 
-//	HAL_GPIO_WritePin (LED_GREEN_GPIO_Port, LED_GREEN_Pin, 1);
-//	goto exit;
-
-
 reset:
-//	mbedtls_net_free(&client_fd);
+#ifdef DEBUG_TLS_PROC
+	++deb_var;
+	PRINTF("connection = %d\r\n", deb_var);
+#endif
 //	listen_fd.fd = -1;
+	mbedtls_net_free(&client_fd);
 	client_fd.fd = -1;
 	mbedtls_ssl_session_reset(&ssl);
 
@@ -161,7 +166,7 @@ reset:
 #ifdef DEBUG_TLS_PROC
 	PRINTF("TlsServerThread: Waiting for a remote connection... ");
 #endif
-	if ((ret = mbedtls_net_accept (&listen_fd, &client_fd, NULL, 0, NULL)) != 0)
+	if ((ret = mbedtls_net_accept (&listen_fd, &client_fd, (void *)&client_adr, sizeof(client_adr), &len_ip)) != 0)
 	{
 #ifdef DEBUG_TLS_PROC
 		PRINTF("failed\n  ! mbedtls_net_accept returned %d\r\n", ret);
@@ -171,6 +176,8 @@ reset:
 	mbedtls_ssl_set_bio(&ssl, &client_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
 #ifdef DEBUG_TLS_PROC
 	PRINTF("ok\r\n");
+	uint16_t client_port = ((uint16_t)client_adr[4] << 8) + client_adr[5];
+	PRINTF("TlsServerThread: Connected to port %d\r\n",  client_port);
 #endif
 
 	// 6. Handshake
