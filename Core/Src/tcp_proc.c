@@ -120,7 +120,7 @@ static void TcpServer_thread 	(
 	while (1)
 	{
 		// Grab & Process new connection
-		if (netconn_accept(conn, &newconn) == ERR_OK)
+		if (netconn_accept (conn, &newconn) == ERR_OK)
 		{
 			pTcpConn = TcpConnStruct;
 			for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
@@ -149,17 +149,17 @@ static void TcpServer_thread 	(
 #ifdef DEBUG_TCP_PROC
 				PRINTF("TcpServerThread: No free conn-structures\r\n");
 #endif
-				netconn_close(newconn);
-				netconn_delete(newconn);
+				netconn_close (newconn);
+				netconn_delete (newconn);
 			}
 		}
 		else
 		{
-			netconn_delete(newconn);
+			netconn_delete (newconn);
 		}
     }
 exit1:
-	for(;;);
+	for (;;);
 }
 
 
