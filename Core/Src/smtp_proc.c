@@ -23,7 +23,7 @@ const char			DATA_SUBJECT[] = "Subject: ";
 
 
 //----------------------------------------------------------------------------
-void SmtpProcess 	(
+void SmtpClient 	(
 					void *arg
 					)
 {

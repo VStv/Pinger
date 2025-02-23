@@ -44,7 +44,7 @@ enum smtp_session_state {
 };
 
 
-void SmtpProcess (void *);
+void SmtpClient (void *);
 
 
 

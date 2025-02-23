@@ -402,7 +402,7 @@ static void ResponseToGetdata	(
 }
 
 
-void HttpProcess 	(
+void HttpServer 	(
 					void *arg
 					)
 {

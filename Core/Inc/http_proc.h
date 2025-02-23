@@ -47,7 +47,7 @@ typedef struct alrm_struct
 
 
 void RunHttpServer (void);
-void HttpProcess (void *);
+void HttpServer (void *);
 
 
 #endif /* INC_HTTP_PROC_H_ */

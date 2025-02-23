@@ -175,7 +175,7 @@ osThreadId_t StartTcpServer (
 		case HTTP_PROT:
 			// Set local port
 			pTcpServer->port = HTTP_SERVER_PORT;
-			pTcpServer->application = HttpProcess;
+			pTcpServer->application = HttpServer;
 			break;
 		default:
 			return NULL;
@@ -367,7 +367,7 @@ osThreadId_t StartTcpClient (
 			// Set remote IP-address & port
 			ip4addr_aton (SMTP_SERVER_ADDR, &pTcpClient->ip);
 			pTcpClient->port = SMTP_SERVER_PORT;
-			pTcpClient->application = SmtpProcess;
+			pTcpClient->application = SmtpClient;
 			break;
 
 		default:
