@@ -16,8 +16,6 @@ osSemaphoreId_t 				sid_TlsContextProcessed = NULL;
 mbedtls_x509_crt 				srvcert;
 mbedtls_pk_context 				pkey;
 
-uint32_t						rcv_timeout;
-
 
 extern mbedtls_ssl_context 		ssl;
 extern mbedtls_ssl_config 		conf;
@@ -246,7 +244,7 @@ static void TlsContext_thread 	(
 #endif
 					break;
 			}
-			HAL_Delay (200);
+//			HAL_Delay (200);
 			break;
 		}
 		len = ret;
