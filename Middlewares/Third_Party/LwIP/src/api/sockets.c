@@ -3859,7 +3859,8 @@ lwip_fcntl(int s, int cmd, int val)
 #endif
 #if LWIP_TCP
         if (sock->conn->pcb.tcp) {
-          if (!(sock->conn->pcb.tcp->flags & TF_RXCLOSED)) {
+
+        if (!(sock->conn->pcb.tcp->flags & TF_RXCLOSED)) {
             op_mode |= O_RDONLY;
           }
           if (!(sock->conn->pcb.tcp->flags & TF_FIN)) {
