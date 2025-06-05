@@ -17,6 +17,7 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include <tls_dat.h>
 #include "main.h"
 #include "cmsis_os.h"
 //#include "mbedtls.h"
@@ -29,7 +30,6 @@
 //#include "console_uart.h"
 #include "tcp_proc.h"
 #include "tls_proc.h"
-
 
 /* USER CODE END Includes */
 
