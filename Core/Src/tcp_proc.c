@@ -7,6 +7,9 @@
 
 #include "tcp_proc.h"
 
+
+
+
 osThreadId_t 		TcpServerTaskHandle = NULL;
 osThreadId_t 		TcpConnHandle[TCP_CONNECTION_MAX] = {NULL};
 osThreadId_t 		TcpClientTaskHandle = NULL;
@@ -20,11 +23,11 @@ osSemaphoreId_t 	sid_Connected = NULL;
 
 #ifdef DEBUG_TCP_PROC
 uint32_t time1, wait_time;
+extern char 				*pp;
 #endif
 
 
 
-extern char 				*pp;
 
 
 //---------------------------------------------------------------------------------------
@@ -70,10 +73,7 @@ static void TcpConn_thread 	(
 
 
 
-//	if (buf != NULL)
-//	{
-		netbuf_delete (buf);
-//	}
+	netbuf_delete (buf);
 	netconn_close (pTcpConn->conn);
 	netconn_delete (pTcpConn->conn);
 	pTcpConn->conn = NULL;
@@ -91,7 +91,7 @@ static void TcpServer_thread 	(
 	net_struct_t *pTcpServer = (net_struct_t *)arg;
 	struct netconn *conn, *newconn;
 	err_t err2;
-	conn_struct_t *pTcpConn;// = TcpConnStruct;
+	conn_struct_t *pTcpConn;
 
 	sid_Connected = osSemaphoreNew (1, 0, NULL);
 	// Create a new connection identifier
@@ -120,7 +120,7 @@ static void TcpServer_thread 	(
 	while (1)
 	{
 		// Grab & Process new connection
-		if (netconn_accept(conn, &newconn) == ERR_OK)
+		if (netconn_accept (conn, &newconn) == ERR_OK)
 		{
 			pTcpConn = TcpConnStruct;
 			for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
@@ -128,7 +128,7 @@ static void TcpServer_thread 	(
 				if (pTcpConn->conn == NULL)
 				{
 #ifdef DEBUG_TCP_PROC
-					PRINTF("TcpServerThread: Connected with remote host: %d.%d.%d.%d: %d\r\n", (uint8_t)(newconn->pcb.tcp->remote_ip.addr), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>8), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>16), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>24), newconn->pcb.tcp->remote_port);
+					PRINTF("TcpServerThread: Connected with remote host: %d.%d.%d.%d: %d\r\n", (u8_t)(newconn->pcb.tcp->remote_ip.addr), (u8_t)((newconn->pcb.tcp->remote_ip.addr)>>8), (u8_t)((newconn->pcb.tcp->remote_ip.addr)>>16), (u8_t)((newconn->pcb.tcp->remote_ip.addr)>>24), newconn->pcb.tcp->remote_port);
 					PRINTF("TcpServerThread: Connection time %ld\r\n", sys_now());
 #endif
 					pTcpConn->conn = newconn;
@@ -149,17 +149,17 @@ static void TcpServer_thread 	(
 #ifdef DEBUG_TCP_PROC
 				PRINTF("TcpServerThread: No free conn-structures\r\n");
 #endif
-				netconn_close(newconn);
-				netconn_delete(newconn);
+				netconn_close (newconn);
+				netconn_delete (newconn);
 			}
 		}
 		else
 		{
-			netconn_delete(newconn);
+			netconn_delete (newconn);
 		}
     }
 exit1:
-	for(;;);
+	for (;;);
 }
 
 
@@ -175,7 +175,7 @@ osThreadId_t StartTcpServer (
 		case HTTP_PROT:
 			// Set local port
 			pTcpServer->port = HTTP_SERVER_PORT;
-			pTcpServer->application = HttpProcess;
+			pTcpServer->application = HttpServer;
 			break;
 		default:
 			return NULL;
@@ -367,7 +367,7 @@ osThreadId_t StartTcpClient (
 			// Set remote IP-address & port
 			ip4addr_aton (SMTP_SERVER_ADDR, &pTcpClient->ip);
 			pTcpClient->port = SMTP_SERVER_PORT;
-			pTcpClient->application = SmtpProcess;//StartSmtpClient;//
+			pTcpClient->application = SmtpClient;
 			break;
 
 		default:

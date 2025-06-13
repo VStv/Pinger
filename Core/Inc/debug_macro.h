@@ -11,6 +11,7 @@
 
 
 //#define DEBUG_PING_PROC
-#define DEBUG_TCP_PROC
+//#define DEBUG_TCP_PROC
+//#define DEBUG_TLS_PROC
 
 #endif /* INC_DEBUG_H_ */

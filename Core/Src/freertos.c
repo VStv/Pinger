@@ -70,7 +70,6 @@ void vApplicationIdleHook( void )
    function, because it is the responsibility of the idle task to clean up
    memory allocated by the kernel to any task that has since been deleted. */
 	GetPingRes();
-
 }
 /* USER CODE END 2 */
 

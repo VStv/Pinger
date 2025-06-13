@@ -31,25 +31,25 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "debug_macro.h"
-#include "console_uart.h"
+//#include "debug_macro.h"
+//#include "console_uart.h"
 
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-typedef struct
+typedef struct data_struct
 {
 	char 			*r_data;
 	char	 		*w_data;
 } data_struct_t;
 
+
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define SMTP_PROT				2
-#define HTTP_PROT				3
 
 /* USER CODE END EC */
 
@@ -77,6 +77,9 @@ void Error_Handler(void);
 #define LED_BLUE_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+#define SMTP_PROT				2
+#define HTTP_PROT				3
+#define HTTPS_PROT				13
 
 /* USER CODE END Private defines */
 
