@@ -417,7 +417,7 @@ void StartDefaultTask(void *argument)
 	  UartRxTaskHandle = StartUartRxTask();
 	  FlashTaskHandle = StartFlashProcess();
 
-	  RunAppServer (HTTP_PROT);
+//	  RunAppServer (HTTP_PROT);
 	  RunAppTlsServer (HTTPS_PROT);
 
 //	  osThreadExit();

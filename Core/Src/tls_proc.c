@@ -13,8 +13,6 @@ net_struct_t					TlsServerStruct;
 mbedtls_x509_crt 				srvcert;
 mbedtls_pk_context 				pkey;
 
-static const char 				*pers = "ssl_server";
-
 const char 						serv_cert[] = SERVER_SERT;
 const size_t 					serv_cert_len = sizeof (serv_cert);
 const char 						serv_key[] = SERVER_SERT_KEY;
@@ -29,9 +27,12 @@ extern mbedtls_entropy_context 	entropy;
 extern char 					*pp;
 #endif
 
+#if TLS_PROC == 1 || TLS_PROC == 2
+static const char 				*pers = "ssl_server";
+#endif
 
 
-#ifdef TLS_PROC_1
+#if TLS_PROC == 1
 
 osThreadId_t 					TlsContextTaskHandle = NULL;
 osSemaphoreId_t 				sid_TlsContextProcessed = NULL;
@@ -485,33 +486,8 @@ exit1:
 }
 
 
-static osThreadId_t StartTlsServer (
-							void *arg
-							)
-{
-	uint32_t app = *(uint32_t *)arg;
-	net_struct_t *pTlsServer = &TlsServerStruct;
 
-	switch (app)
-	{
-		case HTTPS_PROT:
-			// Set local port
-			pTlsServer->port = HTTPS_SERVER_PORT;
-			pTlsServer->application = HttpServer;
-			break;
-		default:
-			return NULL;
-	}
-
-    const osThreadAttr_t tlsTask_attributes = {
-        .name = "TlsServerTask",
-        .stack_size = 512 * 8,
-        .priority = (osPriority_t) osPriorityNormal,
-    };
-	return osThreadNew(TlsServer_thread, (void *)pTlsServer, &tlsTask_attributes);
-}
-
-#else
+#elif TLS_PROC == 2
 
 osThreadId_t 					TlsContextTaskHandle[TLS_CONTEXT_MAX] = {NULL};
 context_struct_t 				TlsContextArray[TLS_CONTEXT_MAX];
@@ -838,8 +814,7 @@ static void TlsServer_thread 	(
 #ifdef DEBUG_TLS_PROC
 				PRINTF("ok\r\n\r\n");
 				++deb_var;
-				client_port = (
-				(uint16_t)client_adr[4] << 8) + client_adr[5];
+				client_port = ((uint16_t)client_adr[4] << 8) + client_adr[5];
 				PRINTF("TlsServerThread: Connection %d to port %d use socket %c\r\n", deb_var, client_port, pTlsContext->number);
 #endif
 				TlsContextTaskHandle[i] = osThreadNew (TlsContext_thread, (void *)pTlsContext, &tlsContext_attributes);
@@ -874,10 +849,330 @@ exit1:
 	osThreadExit ();
 }
 
+#else
+
+//	#include "lwip.h"
+//	#include "lwip/opt.h"
+
+
+#include "lwip/api.h"
+
+
+//	#include "lwip/sys.h"
+//	#include "lwip/tcp.h"
+
+
+osThreadId_t 		TlsContextTaskHandle[TLS_CONTEXT_MAX] = {NULL};
+osSemaphoreId_t 	sid_TlsTaskCount = NULL;
+
+
+static err_t my_netbuf_pull	(
+							client_args_t *client,
+							u16_t len
+							)
+{
+	if (client->rx_buf == NULL || client->rx_len == 0) return ERR_ARG;
+
+	if (client->rx_len > len)
+	{
+		client->rx_ptr += len;
+		client->rx_len -= len;
+		return ERR_OK;
+	}
+	else
+	{
+		netbuf_delete(client->rx_buf);
+		client->rx_buf = NULL;
+		client->rx_ptr = NULL;
+		client->rx_len = 0;
+		return ERR_OK;
+	}
+}
+
+
+static int netconn_send_cb	(
+							void *ctx,
+							const unsigned char *buf,
+							size_t len
+							)
+{
+    client_args_t *client = (client_args_t *)ctx;
+    err_t err = netconn_write(client->conn, buf, len, NETCONN_COPY);
+    return (err == ERR_OK) ? (int)len : MBEDTLS_ERR_NET_SEND_FAILED;
+}
+
+
+static int netconn_recv_timeout_cb	(
+									void *ctx,
+									unsigned char *buf,
+									size_t len,
+									uint32_t timeout
+									)
+{
+    client_args_t *client = (client_args_t *)ctx;
+    void *data;
+    u16_t data_len;
+    err_t err;
+
+    if (client->rx_buf == NULL) {
+        netconn_set_recvtimeout(client->conn, timeout);
+        err = netconn_recv(client->conn, &client->rx_buf);
+        if (err != ERR_OK)
+		{
+        	PRINTF("LWIP receive failed: err = %d\r\n", err);
+        	return MBEDTLS_ERR_NET_RECV_FAILED;
+		}
+
+        netbuf_data(client->rx_buf, &data, &data_len);
+        client->rx_ptr = (uint8_t *)data;
+        client->rx_len = data_len;
+    }
+
+    if (client->rx_len == 0) return MBEDTLS_ERR_NET_RECV_FAILED;
+
+    size_t to_copy = (client->rx_len > len) ? len : client->rx_len;
+    memcpy(buf, client->rx_ptr, to_copy);
+    my_netbuf_pull(client, to_copy);
+
+    PRINTF("LWIP receive got: bytes = %d\r\n", to_copy);
+    return (int)to_copy;
+}
+
+
+static void TlsContext_thread 	(
+								void *arg
+								)
+{
+	client_args_t *args = (client_args_t *)arg;
+    int ret = 0;
+
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_config conf;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_entropy_context entropy;
+    mbedtls_x509_crt cert;
+    mbedtls_pk_context key;
+
+    mbedtls_ssl_init(&ssl);
+    mbedtls_ssl_config_init(&conf);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_x509_crt_init(&cert);
+    mbedtls_pk_init(&key);
+
+    const char *pers = "ssl_server";
+	// 1. Load the certificates and private RSA key
+#ifdef DEBUG_TLS_PROC
+	PRINTF("TlsServerThread: Loading the certificate ... \r\n");
+#endif
+	ret = mbedtls_x509_crt_parse (&cert, (const unsigned char*) serv_cert, serv_cert_len);
+	if (ret != 0)
+	{
+#ifdef DEBUG_TLS_PROC
+		PRINTF("... mbedtls_x509_crt_parse is failed\n  ! returned %d\r\n", ret);
+#endif
+		goto cleanup;
+	}
+	ret =  mbedtls_pk_parse_key (&key, (const unsigned char *) serv_key, serv_key_len, NULL, 0);
+	if ( ret != 0 )
+	{
+#ifdef DEBUG_TLS_PROC
+		PRINTF("... mbedtls_pk_parse_key is failed\n ! returned %d\r\n", ret);
+#endif
+		goto cleanup;
+	}
+#ifdef DEBUG_TLS_PROC
+	PRINTF("... certificate loading is ok\r\n");
+#endif
+
+	// 3. Seed the RNG
+#ifdef DEBUG_TLS_PROC
+	PRINTF("TlsServerThread: Seeding the random number generator...\r\n");
+#endif
+	if ((ret = mbedtls_ctr_drbg_seed (&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen( (char *)pers))) != 0)
+	{
+#ifdef DEBUG_TLS_PROC
+		PRINTF("... mbedtls_ctr_drbg_seed is failed\n ! returned %d\r\n", ret);
+#endif
+		goto cleanup;
+	}
+#ifdef DEBUG_TLS_PROC
+	PRINTF("... RNG seeding is ok\r\n");
+#endif
+
+	// 4. Setup stuff
+#ifdef DEBUG_TLS_PROC
+	PRINTF("TlsServerThread: Setting up the SSL data...\r\n");
+#endif
+	if ((ret = mbedtls_ssl_config_defaults (&conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0)
+	{
+#ifdef DEBUG_TLS_PROC
+		PRINTF("... mbedtls_ssl_config_defaults failed\n  ! returned %d\r\n", ret);
+#endif
+		goto cleanup;
+	}
+	mbedtls_ssl_conf_rng (&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
+	mbedtls_ssl_conf_ca_chain (&conf, srvcert.next, NULL);
+	if ((ret = mbedtls_ssl_conf_own_cert (&conf, &cert, &key)) != 0)
+	{
+#ifdef DEBUG_TLS_PROC
+		PRINTF("... mbedtls_ssl_conf_own_cert failed\n  ! returned %d\r\n", ret);
+#endif
+		goto cleanup;
+	}
+
+	if ((ret = mbedtls_ssl_setup (&ssl, &conf)) != 0)
+	{
+#ifdef DEBUG_TLS_PROC
+		PRINTF("... mbedtls_ssl_setup failed\n  ! returned %d\r\n", ret);
+#endif
+		goto cleanup;
+	}
+
+    mbedtls_ssl_conf_read_timeout (&conf, 5000);
+#ifdef DEBUG_TLS_PROC
+	PRINTF("... Setting up the SSL data is ok\r\n");
+#endif
+
+    // 5. I/O Callbacks
+    mbedtls_ssl_set_bio (&ssl, args, netconn_send_cb, NULL, netconn_recv_timeout_cb);//mbedtls_net_recv_timeout);//
+
+    // 6. Handshake
+#ifdef DEBUG_TLS_PROC
+	PRINTF("TlsContextThread: Performing the SSL/TLS handshake...\r\n");
+#endif
+    if ((ret = mbedtls_ssl_handshake(&ssl)) != 0)
+    {
+#ifdef DEBUG_TLS_PROC
+			PRINTF("...mbedtls_ssl_handshake is failed\n  ! returned %d\r\n", ret);
+#endif
+			goto cleanup;
+    }
+#ifdef DEBUG_TLS_PROC
+	PRINTF("... TLS handshake is ok\r\n");
+#endif
+    char buf[1024];
+	int len = mbedtls_ssl_read(&ssl, (unsigned char *)buf, sizeof(buf)-1);
+	if (len > 0)
+	{
+		buf[len] = 0;
+		// Вивід запиту:
+		PRINTF("Received: %s\n", buf);
+
+		const char *resp =
+			"HTTP/1.1 200 OK\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: 12\r\n\r\n"
+			"Hello HTTPS!";
+
+		mbedtls_ssl_write(&ssl, (const unsigned char *)resp, strlen(resp));
+    }
+
+cleanup:
+    // Завершення
+	if (args->rx_buf)
+	{
+		netbuf_delete (args->rx_buf);
+		args->rx_buf = NULL;
+	}
+    mbedtls_ssl_close_notify(&ssl);
+    netconn_close(args->conn);
+    netconn_delete(args->conn);
+
+    // Free
+    mbedtls_ssl_free(&ssl);
+    mbedtls_ssl_config_free(&conf);
+    mbedtls_x509_crt_free(&cert);
+    mbedtls_pk_free(&key);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+
+    osSemaphoreRelease (sid_TlsTaskCount);    // release semaphore
+    vPortFree(args);
+    osThreadExit(); // Завершити задачу
+}
+
+
+static void TlsServer_thread 	(
+								void *arg
+								)
+{
+	uint32_t task_number;
+	net_struct_t *pTlsServer = (net_struct_t *)arg;
+    struct netconn *server_conn, *client_conn;
+#ifdef DEBUG_TLS_PROC
+	uint8_t deb_var = 0;
+#endif
+
+	sid_TlsTaskCount = osSemaphoreNew (TLS_CONTEXT_MAX, TLS_CONTEXT_MAX, NULL);	// create counting semaphore
+    vQueueAddToRegistry (sid_TlsTaskCount, "sid_TlsTaskCount");
+
+    server_conn = netconn_new(NETCONN_TCP);
+    netconn_bind(server_conn, NULL, pTlsServer->port);
+#ifdef DEBUG_TLS_PROC
+	PRINTF("TlsServerThread: Bind on https://localhost:%d/ ... ", pTlsServer->port);
+#endif
+    netconn_listen (server_conn);
+
+    while (1)
+    {
+    	if (netconn_accept (server_conn, &client_conn) == ERR_OK)
+        {
+    		if (osSemaphoreAcquire (sid_TlsTaskCount, 0) == osOK)	// take semaphore
+    		{
+				task_number = TLS_CONTEXT_MAX - osSemaphoreGetCount (sid_TlsTaskCount);
+				client_args_t *args = pvPortMalloc(sizeof(client_args_t));
+				args->conn = client_conn;
+				args->rx_buf = NULL;
+				args->rx_ptr = NULL;
+				args->rx_len = 0;
+				if (args != NULL)
+				{
+					args->conn = client_conn;
+#ifdef DEBUG_TLS_PROC
+					++deb_var;
+PRINTF("TlsServerThread: Connection %d with remote host: %d.%d.%d.%d: %d\r\n",
+					deb_var,
+					(u8_t)(client_conn->pcb.tcp->remote_ip.addr),
+					(u8_t)((client_conn->pcb.tcp->remote_ip.addr)>>8),
+					(u8_t)((client_conn->pcb.tcp->remote_ip.addr)>>16),
+					(u8_t)((client_conn->pcb.tcp->remote_ip.addr)>>24),
+					client_conn->pcb.tcp->remote_port);
+#endif
+					char nameThread[] = {'T','L','S','C','o','n','t','e','x','t','T','a','s','k', task_number,'\0'};
+					const osThreadAttr_t tlsContext_attributes = {
+						.name = nameThread,
+						.priority = (osPriority_t) osPriorityNormal,
+						.stack_size = 8192
+					};
+					TlsContextTaskHandle[task_number-1] = osThreadNew (TlsContext_thread, args, &tlsContext_attributes);
+				}
+				else
+				{
+					// Не вистачило пам'яті — закриваємо
+					netconn_close(client_conn);
+					netconn_delete(client_conn);
+				    osSemaphoreRelease (sid_TlsTaskCount);    // release semaphore
+				}
+    		}
+    		else
+    		{
+				// Too many connections
+				netconn_close(client_conn);
+				netconn_delete(client_conn);
+    		}
+        }
+        osDelay(1); // невелика пауза для RTOS
+    }
+    osSemaphoreDelete(sid_TlsTaskCount);	// delete semaphore
+}
+
+#endif
+
 
 static osThreadId_t StartTlsServer	(
-							void *arg
-							)
+									void *arg
+									)
 {
 	uint32_t app = *(uint32_t *)arg;
 	net_struct_t *pTlsServer = &TlsServerStruct;
@@ -892,13 +1187,6 @@ static osThreadId_t StartTlsServer	(
 		default:
 			return NULL;
 	}
-//	context_struct_t *pTlsContext = TlsContextStruct;
-//	for (uint8_t i = 0; i < TLS_CONTEXT_MAX; i++)
-//	{
-//		pTlsContext->number = '1'+i;
-//		pTlsContext->ssl = NULL;
-//		pTlsContext++;
-//	}
     const osThreadAttr_t tlsTask_attributes = {
         .name = "TlsServerTask",
         .stack_size = 512 * 10,
@@ -907,8 +1195,6 @@ static osThreadId_t StartTlsServer	(
 	return osThreadNew(TlsServer_thread, (void *)pTlsServer, &tlsTask_attributes);
 }
 
-#endif
-
 
 void RunAppTlsServer 	(
 						uint32_t app
@@ -916,4 +1202,5 @@ void RunAppTlsServer 	(
 {
 	TlsServerTaskHandle = StartTlsServer ((void *)&app);
 }
+
 

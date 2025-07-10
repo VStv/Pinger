@@ -23,12 +23,15 @@
 
 
 #define DEBUG_TLS_PROC
-//#define TLS_PROC_1
-#define LOOP_1
+
+//#define TLS_PROC 1
+//#define TLS_PROC 2
+#define TLS_PROC 3
 
 
-#ifndef TLS_PROC_1
-#define TLS_CONTEXT_MAX 		1
+
+#if TLS_PROC != 1
+#define TLS_CONTEXT_MAX 		3
 #endif
 
 
@@ -40,6 +43,14 @@ typedef struct context_struct {
 } context_struct_t;
 
 
+#if TLS_PROC == 3
+typedef struct {
+    struct netconn *conn;
+    struct netbuf *rx_buf;
+    uint8_t *rx_ptr;
+    u16_t rx_len;
+} client_args_t;
+#endif
 
 
 void RunAppTlsServer (uint32_t);
