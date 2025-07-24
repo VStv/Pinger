@@ -31,17 +31,18 @@
 #include "console_uart.h"
 
 
-//#define DEBUG_TCP_PROC
+#define DEBUG_TCP_PROC
 #define TCP_CONNECTION_MAX 		4
 
 
 
 typedef	void (*app_func) (void *);
+typedef	void (*tcp_task_t) (void *);
 
 
 typedef struct conn_struct {
 	struct netconn 	*conn;
-	char 			number;
+	uint32_t		number;
 } conn_struct_t;
 
 
@@ -54,12 +55,12 @@ typedef struct net_struct {
 } net_struct_t;
 
 
+void RunAppTcpServer (uint16_t);
 
-osThreadId_t StartTcpServer (void *);
+void RunAppClient (uint32_t);
 osThreadId_t StartTcpClient (void *);
 
-void RunAppServer (uint32_t);
-void RunAppClient (uint32_t);
+
 
 
 

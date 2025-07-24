@@ -68,7 +68,6 @@ const osThreadAttr_t defaultTask_attributes = {
 osThreadId_t 	ConsoleTaskHandle = NULL;
 osThreadId_t 	UartRxTaskHandle = NULL;
 osThreadId_t 	FlashTaskHandle = NULL;
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -417,8 +416,8 @@ void StartDefaultTask(void *argument)
 	  UartRxTaskHandle = StartUartRxTask();
 	  FlashTaskHandle = StartFlashProcess();
 
-//	  RunAppServer (HTTP_PROT);
-	  RunAppTlsServer (HTTPS_PROT);
+	RunAppTcpServer (HTTPS_SERVER_PORT);
+//	  RunAppTlsServer (HTTPS_PROT);
 
 //	  osThreadExit();
   /* Infinite loop */
