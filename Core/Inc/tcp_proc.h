@@ -32,7 +32,7 @@
 
 
 #define DEBUG_TCP_PROC
-#define TCP_CONNECTION_MAX 		4
+#define TCP_CONNECTION_MAX 		3
 
 
 

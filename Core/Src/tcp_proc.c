@@ -46,7 +46,7 @@ static void TcpConn1_thread (
 			(u16_t)(pTcpConn->conn->pcb.tcp->remote_port));
 #endif
 
-	netconn_set_recvtimeout (pTcpConn->conn, 5000);
+	netconn_set_recvtimeout (pTcpConn->conn, 1000);
 	// receive the data from the client
 	if (netconn_recv (pTcpConn->conn, &buf) == ERR_OK)
 	{
@@ -82,8 +82,8 @@ static void TcpConn1_thread (
 	netconn_close (pTcpConn->conn);
 	netconn_delete (pTcpConn->conn);
 	pTcpConn->conn = NULL;
-	osSemaphoreRelease (sid_TcpConnCount);
 	vPortFree (pTcpConn);
+	osSemaphoreRelease (sid_TcpConnCount);
 	osThreadExit ();
 }
 
