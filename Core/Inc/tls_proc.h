@@ -35,6 +35,6 @@ typedef struct {
 } client_args_t;
 
 
-void TlsContext1_thread (void *);
+void TlsContext_thread (void *);
 
 #endif /* INC_TLS_PROC_H_ */

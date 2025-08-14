@@ -417,7 +417,7 @@ void StartDefaultTask(void *argument)
 	  FlashTaskHandle = StartFlashProcess();
 
 	RunAppTcpServer (HTTPS_SERVER_PORT);
-//	  RunAppTlsServer (HTTPS_PROT);
+	RunAppTcpServer (HTTP_SERVER_PORT);
 
 //	  osThreadExit();
   /* Infinite loop */
