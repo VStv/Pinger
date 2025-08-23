@@ -21,7 +21,7 @@ osThreadId_t 		TcpConnTaskHandle[TCP_CONNECTION_MAX] = {NULL};
 osSemaphoreId_t 	sid_TcpConnCount = NULL;
 
 extern void TlsContext_thread (void *);
-
+extern uint32_t TlsConfig (void);
 
 static void TcpConn_thread (
 							void *arg
@@ -99,14 +99,21 @@ static void TcpServer_thread 	(
 	uint16_t *pPort = (uint16_t *)arg_port;
 	const char *tag_tcp = "TcpServerThread";
 	const char *tag_tls = "TlsServerThread";
-	char *tag, *nameThread;
+	char *nameThread;
+	uint32_t tls_conf;
 
 #ifdef DEBUG_TCP_PROC
-    if (*pPort == HTTP_SERVER_PORT)
+	char *tag;
+	if (*pPort == HTTP_SERVER_PORT)
     	tag = (char *)tag_tcp;
     else
     	tag = (char *)tag_tls;
 #endif
+
+//-------------------------------------------------
+//	if (*pPort == HTTPS_SERVER_PORT && !tls_conf)
+//		tls_conf = TlsConfig();
+//-------------------------------------------------
 
     conn = netconn_new (NETCONN_TCP);
 	if (conn == NULL)

@@ -25,8 +25,6 @@
 #define DEBUG_TLS_PROC
 
 
-
-
 typedef struct {
     struct netconn *conn;
     struct netbuf *rx_buf;
@@ -35,6 +33,8 @@ typedef struct {
 } client_args_t;
 
 
+uint32_t TlsConfig (void);
 void TlsContext_thread (void *);
+
 
 #endif /* INC_TLS_PROC_H_ */
