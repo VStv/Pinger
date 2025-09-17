@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include "console_uart.h"
+#include "smtp_proc.h"
 
 
 //#define DEBUG_PING_PROC

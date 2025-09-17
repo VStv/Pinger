@@ -416,8 +416,9 @@ void StartDefaultTask(void *argument)
 	  UartRxTaskHandle = StartUartRxTask();
 	  FlashTaskHandle = StartFlashProcess();
 
-	RunAppTcpServer (HTTPS_SERVER_PORT);
-	RunAppTcpServer (HTTP_SERVER_PORT);
+//	RunAppTcpServer (HTTPS_SERVER_PORT);
+//	RunAppTcpServer (HTTP_SERVER_PORT);
+	  RunAppTcpClient (SMTP_PORT);
 
 //	  osThreadExit();
   /* Infinite loop */

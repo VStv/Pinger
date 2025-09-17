@@ -22,10 +22,13 @@
 #include "tls_dat.h"
 
 
-#define DEBUG_TLS_PROC
+//#define DEBUG_TLS_NETCONN_RCV
+//#define DEBUG_TLS_FREE
+//#define DEBUG_TLS_SERV
+#define DEBUG_TLS_CLI
 
 
-typedef struct {
+typedef struct client_args {
     struct netconn *conn;
     struct netbuf *rx_buf;
     uint8_t *rx_ptr;
@@ -33,8 +36,9 @@ typedef struct {
 } client_args_t;
 
 
-uint32_t TlsConfig (void);
-void TlsContext_thread (void *);
+//uint32_t TlsConfig (void);
+void TlsServerContext_thread (void *);
+void TlsClientContext (void *);
 
 
 #endif /* INC_TLS_PROC_H_ */

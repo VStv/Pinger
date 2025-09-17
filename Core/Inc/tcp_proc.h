@@ -31,7 +31,9 @@
 #include "console_uart.h"
 
 
-#define DEBUG_TCP_PROC
+//#define DEBUG_TCP_SERV
+#define DEBUG_TCP_CLI
+
 #define TCP_CONNECTION_MAX 		3
 
 
@@ -49,6 +51,7 @@ typedef struct conn_struct {
 typedef struct net_struct {
 	ip_addr_t		ip;
 	uint16_t		port;
+	struct netconn 	*conn;
 	app_func		application;
 	osThreadId_t	*app_id;
 	osSemaphoreId_t	*sem_app_cplt;
@@ -57,8 +60,8 @@ typedef struct net_struct {
 
 void RunAppTcpServer (uint16_t);
 
-void RunAppClient (uint32_t);
-osThreadId_t StartTcpClient (void *);
+void RunAppTcpClient (uint16_t);
+//osThreadId_t StartTcpClient (void *);
 
 
 
