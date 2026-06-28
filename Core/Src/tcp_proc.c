@@ -7,28 +7,23 @@
 
 #include "tcp_proc.h"
 
-osThreadId_t 		TcpServerTaskHandle = NULL;
-osThreadId_t 		TcpConnHandle[TCP_CONNECTION_MAX] = {NULL};
-osThreadId_t 		TcpClientTaskHandle = NULL;
 
-conn_struct_t 		TcpConnStruct[TCP_CONNECTION_MAX];
-
-net_struct_t		TcpServerStruct;
-net_struct_t		TcpClientStruct;
-
-osSemaphoreId_t 	sid_Connected = NULL;
-
-#ifdef DEBUG_TCP_PROC
-uint32_t time1, wait_time;
+#if defined(DEBUG_TCP_SERV) || defined(DEBUG_TCP_CLI)
+uint32_t 			time1, wait_time;
+extern char 		*pp;
 #endif
 
 
+// ---------------------------------  TCP Server  ----------------------------------------
 
-extern char 				*pp;
+osThreadId_t 		TcpServerTaskHandle[2] = {NULL};
+osThreadId_t 		TcpServerConnTaskHandle[TCP_CONNECTION_MAX] = {NULL};
+osSemaphoreId_t 	sid_TcpConnCount = NULL;
 
+extern void TlsServerContext_thread (void *);
+//extern uint32_t TlsConfig (void);
 
-//---------------------------------------------------------------------------------------
-static void TcpConn_thread 	(
+static void TcpServerConn_thread (
 							void *arg
 							)
 {
@@ -37,30 +32,45 @@ static void TcpConn_thread 	(
 	data_struct_t RW_data = {NULL};
 	uint16_t len;
 
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpConnThread: accepted new connection %c\r\n", pTcpConn->number);
+#ifdef DEBUG_TCP_SERV
+    const char *tag = "TcpServerConnThread";
+//	PRINTF("%s %ld: Connection %p in conn_struct_t %p with remote host: %s:%d\r\n",
+//			tag,
+//			pTcpConn->number,
+//			pTcpConn->conn,
+//			pTcpConn,
+//			ipaddr_ntoa (pTcpConn->conn->pcb.tcp->remote_ip),
+//			pTcpConn->conn->pcb.tcp->remote_port);
+	PRINTF("%s %ld: Connection %p in conn_struct_t %p with remote host: %d.%d.%d.%d: %d\r\n",
+			tag,
+			pTcpConn->number,
+			pTcpConn->conn,
+			pTcpConn,
+			(u8_t)(pTcpConn->conn->pcb.tcp->remote_ip.addr),
+			(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>8),
+			(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>16),
+			(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>24),
+			(u16_t)(pTcpConn->conn->pcb.tcp->remote_port));
 #endif
-
-
 
 	netconn_set_recvtimeout (pTcpConn->conn, 1000);
 	// receive the data from the client
 	if (netconn_recv (pTcpConn->conn, &buf) == ERR_OK)
 	{
 		netbuf_data (buf, (void**)&RW_data.r_data, &len);
-		TcpServerStruct.application ((void *)&RW_data);
+		HttpServer ((void *)&RW_data);
 		// send the message back to the client
 		if (netconn_write (pTcpConn->conn, (const unsigned char*)RW_data.w_data, (size_t)strlen (RW_data.w_data), NETCONN_COPY) != ERR_OK)
 		{
-#ifdef DEBUG_TCP_PROC
-			PRINTF ("TcpConnThread: Write error\r\n\n");
+#ifdef DEBUG_TCP_SERV
+			PRINTF ("%s %ld: Write error\r\n\n", tag, pTcpConn->number);
 #endif
 		}
 	}
 	else
 	{
-#ifdef DEBUG_TCP_PROC
-		PRINTF ("TcpConnThread: Receive error\r\n\n");
+#ifdef DEBUG_TCP_SERV
+		PRINTF ("%s %ld: Receive error\r\n\n", tag, pTcpConn->number);
 #endif
 	}
 	if (RW_data.w_data != NULL)
@@ -68,153 +78,302 @@ static void TcpConn_thread 	(
 		vPortFree (RW_data.w_data);
 	}
 
-
-
-//	if (buf != NULL)
-//	{
-		netbuf_delete (buf);
-//	}
+	netbuf_delete (buf);
+#ifdef DEBUG_TCP_SERV
+	PRINTF ("%s %ld: Connection %p to port %d is closing\r\n\n",
+			tag,
+			pTcpConn->number,
+			pTcpConn->conn,
+			(u16_t)(pTcpConn->conn->pcb.tcp->remote_port));
+#endif
 	netconn_close (pTcpConn->conn);
 	netconn_delete (pTcpConn->conn);
 	pTcpConn->conn = NULL;
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpConnThread: Connection %c closed\r\n\n", pTcpConn->number);
-#endif
+	vPortFree (pTcpConn);
+	osSemaphoreRelease (sid_TcpConnCount);
 	osThreadExit ();
 }
 
 
 static void TcpServer_thread 	(
-								void *arg
+								void *arg_port
 								)
 {
-	net_struct_t *pTcpServer = (net_struct_t *)arg;
-	struct netconn *conn, *newconn;
-	err_t err2;
-	conn_struct_t *pTcpConn;// = TcpConnStruct;
+	uint32_t task_number, stack_sz;
+    struct netconn *conn, *newconn;
+    tcp_task_t	task_handler = NULL;
+    err_t err2;
+	uint16_t *pPort = (uint16_t *)arg_port;
+	char *nameThread;
 
-	sid_Connected = osSemaphoreNew (1, 0, NULL);
-	// Create a new connection identifier
+#ifdef DEBUG_TCP_SERV
+	const char *tag_tcp = "TcpServerThread";
+	const char *tag_tls = "TlsServerThread";
+	char *tag;
+	if (*pPort == HTTP_SERVER_PORT)
+    	tag = (char *)tag_tcp;
+    else
+    	tag = (char *)tag_tls;
+#endif
+
+//-------------------------------------------------
+//	uint32_t tls_conf;
+//	if (*pPort == HTTPS_SERVER_PORT && !tls_conf)
+//		tls_conf = TlsConfig();
+//-------------------------------------------------
+
     conn = netconn_new (NETCONN_TCP);
 	if (conn == NULL)
 	{
-#ifdef DEBUG_TCP_PROC
-		PRINTF("TcpServerThread: Can't create TCP connection\r\n");
+#ifdef DEBUG_TCP_SERV
+		PRINTF("%s: Can't create TCP connection\r\n", tag);
+		goto trap;
 #endif
-		goto exit1;
+		return;
 	}
-	// Bind connection to the port 80
-	err2 = netconn_bind (conn, IP_ADDR_ANY, pTcpServer->port);
+	// Bind connection to the port 80(433)
+	err2 = netconn_bind (conn, IP_ADDR_ANY, *pPort);
 	if (err2 != ERR_OK)
 	{
 		err2 = netconn_delete (conn);
 		conn = NULL;
-#ifdef DEBUG_TCP_PROC
-		PRINTF("TcpServerThread: Can't bind TCP connection %p\r\n", conn);
+#ifdef DEBUG_TCP_SERV
+		PRINTF("%s: Can't bind TCP connection %p\r\n", tag, conn);
+		goto trap;
 #endif
-		goto exit1;
+		return;
 	}
-	// Tell connection to go into listening mode
-	netconn_listen (conn);
-	// The while loop will run every time this Task
-	while (1)
-	{
-		// Grab & Process new connection
-		if (netconn_accept(conn, &newconn) == ERR_OK)
-		{
-			pTcpConn = TcpConnStruct;
-			for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
-			{
-				if (pTcpConn->conn == NULL)
-				{
-#ifdef DEBUG_TCP_PROC
-					PRINTF("TcpServerThread: Connected with remote host: %d.%d.%d.%d: %d\r\n", (uint8_t)(newconn->pcb.tcp->remote_ip.addr), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>8), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>16), (uint8_t)((newconn->pcb.tcp->remote_ip.addr)>>24), newconn->pcb.tcp->remote_port);
-					PRINTF("TcpServerThread: Connection time %ld\r\n", sys_now());
+#ifdef DEBUG_TCP_SERV
+	PRINTF("%s: Bind on https://localhost: %d\r\n", tag, *pPort);
 #endif
-					pTcpConn->conn = newconn;
-					char nameThread[] = {'T','C','P','C','o','n','n','T','a','s','k', pTcpConn->number,'\0'};
-					const osThreadAttr_t tcpConn_attributes = {
+	netconn_listen (conn);
+
+    while (1)
+    {
+    	if (netconn_accept (conn, &newconn) == ERR_OK)
+        {
+    		if (osSemaphoreAcquire (sid_TcpConnCount, 0) == osOK)	// take semaphore
+    		{
+				task_number = TCP_CONNECTION_MAX - osSemaphoreGetCount (sid_TcpConnCount) - 1;
+				conn_struct_t *pTcpConn = pvPortMalloc(sizeof (conn_struct_t ));
+				if (pTcpConn == NULL) goto cleanup;
+				pTcpConn->conn = newconn;
+				pTcpConn->number = task_number;
+#ifdef DEBUG_TCP_SERV
+				PRINTF("%s: Connection %p number %ld in conn_struct_t %p with remote host: %d.%d.%d.%d: %d\r\n",
+						tag,
+						pTcpConn->conn,
+						pTcpConn->number,
+						pTcpConn,
+						(u8_t)(pTcpConn->conn->pcb.tcp->remote_ip.addr),
+						(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>8),
+						(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>16),
+						(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>24),
+						(u16_t)(pTcpConn->conn->pcb.tcp->remote_port));
+#endif
+				char tlsNameThread[] = {'T','l','s','S','e','r','v','e','r','C','o','n','t','T','a','s','k', (char)(pTcpConn->number + 0x30),'\0'};
+				char tcpNameThread[] = {'T','c','p','S','e','r','v','e','r','C','o','n','n','T','a','s','k', (char)(pTcpConn->number + 0x30),'\0'};
+				switch (*pPort)
+				{
+					case HTTP_PORT:
+						nameThread = tcpNameThread;
+						stack_sz = 2048;
+						task_handler = TcpServerConn_thread;
+						break;
+
+					case HTTPS_PORT:
+						nameThread = tlsNameThread;
+						stack_sz = 10240;
+						task_handler = TlsServerContext_thread;
+						break;
+
+					default:
+#ifdef DEBUG_TCP_SERV
+						PRINTF("%s: Unknown local port %d\r\n", tag, *pPort);
+#endif
+						goto cleanup;
+				}
+				const osThreadAttr_t tcpConn_attributes = {
 						.name = nameThread,
 						.priority = (osPriority_t) osPriorityNormal,
-						.stack_size = 512 * 4,
-					};
-					TcpConnHandle[i] = osThreadNew (TcpConn_thread, (void *)pTcpConn, &tcpConn_attributes);
-					newconn = NULL;
-					break;
-				}
-				pTcpConn++;
-			}
-			if (newconn != NULL)
-			{
-#ifdef DEBUG_TCP_PROC
-				PRINTF("TcpServerThread: No free conn-structures\r\n");
-#endif
-				netconn_close(newconn);
-				netconn_delete(newconn);
-			}
-		}
-		else
-		{
+						.stack_size = stack_sz,
+				};
+				TcpServerConnTaskHandle[task_number] = osThreadNew (task_handler, (void *)pTcpConn, &tcpConn_attributes);
+				newconn = NULL;
+				continue;
+    		}
+cleanup:
+    		netconn_close(newconn);
 			netconn_delete(newconn);
-		}
+        }
     }
-exit1:
-	for(;;);
+#ifdef DEBUG_TCP_SERV
+trap:
+    for (;;);
+#endif
 }
 
 
-osThreadId_t StartTcpServer (
+void RunAppTcpServer(
+					u16_t port
+					)
+{
+	char *nameThread;
+	uint32_t serv_num;
+	const char *tcp_serv_name = "TcpServerTask";
+	const char *tls_serv_name = "TlsServerTask";
+#ifdef DEBUG_TCP_SERV
+	const char *tag = "RunAppTcpServer";
+#endif
+
+	if (sid_TcpConnCount == NULL)
+	{
+		sid_TcpConnCount = osSemaphoreNew (TCP_CONNECTION_MAX, TCP_CONNECTION_MAX, NULL);
+		vQueueAddToRegistry (sid_TcpConnCount, "sid_TcpConnCount");
+	}
+
+	switch (port)
+	{
+		case HTTP_PORT:
+			serv_num = 0;
+			nameThread = (char *)tcp_serv_name;
+			break;
+		case HTTPS_PORT:
+			nameThread = (char *)tls_serv_name;
+			serv_num = 1;
+			break;
+		default:
+#ifdef DEBUG_TCP_SERV
+			PRINTF("%s: Unknown app protocol %d\r\n", tag, port);
+#endif
+			return;
+	}
+	if (TcpServerTaskHandle[serv_num] != NULL)
+	{
+#ifdef DEBUG_TCP_SERV
+		PRINTF("%s: %s already has run \r\n", tag, nameThread);
+#endif
+		return;
+	}
+	uint16_t *port_arg = pvPortMalloc(sizeof (uint16_t));
+	if (!port_arg) return;
+	*port_arg = port;
+
+#ifdef DEBUG_TCP_SERV
+	PRINTF("%s: %s runing\r\n", tag, nameThread);
+#endif
+
+    const osThreadAttr_t tcpTask_attributes = {
+        .name = nameThread,
+        .stack_size = 512 * 4,	//2
+        .priority = (osPriority_t) osPriorityNormal,
+    };
+	TcpServerTaskHandle[serv_num] = osThreadNew(TcpServer_thread, (void *)port_arg, &tcpTask_attributes);
+}
+
+
+
+
+// ---------------------------------  TCP Client  ----------------------------------------
+
+osThreadId_t 		TcpClientTaskHandle = NULL;
+net_struct_t		TcpClientStruct;
+osSemaphoreId_t 	sid_Connected = NULL;
+
+extern void TlsClientContext (void *);
+
+
+static void TcpClientConn 	(
 							void *arg
 							)
 {
-	uint32_t app = *(uint32_t *)arg;
-	net_struct_t *pTcpServer = &TcpServerStruct;
+	net_struct_t *pTcpClient = (net_struct_t *)arg;
+	struct netbuf *buf = NULL;
+	uint16_t len;
+	data_struct_t RW_data = {NULL};
+//**********************************************
+	int cnt=0;
+	char wbuf[128];
+	RW_data.w_data = wbuf;
+//**********************************************
+	err_t err;
+#ifdef DEBUG_TCP_CLI
+	const char *tag = "TcpClientConn";
+#endif
 
-	switch (app)
+	while (1)
 	{
-		case HTTP_PROT:
-			// Set local port
-			pTcpServer->port = HTTP_SERVER_PORT;
-			pTcpServer->application = HttpProcess;
+//		pTcpClient->application ((void *)&RW_data);
+//**********************************************
+//		sprintf (RW_data.w_data, "Client send %d\r\n", ++cnt);
+		++cnt;
+		if (cnt%2 == 1)
+			sprintf (RW_data.w_data, "Client send %d\r\n", cnt);
+		else
+			*(RW_data.w_data) = 0;
+//**********************************************
+
+		// send the message back to the server
+		err = netconn_write (pTcpClient->conn, (const unsigned char*)RW_data.w_data, (size_t)strlen (RW_data.w_data), NETCONN_COPY);
+		if (err != ERR_OK)
+		{
+#ifdef DEBUG_TCP_CLI
+			PRINTF ("%s: Write error=%d\r\n", tag, err);
+#endif
 			break;
-		default:
-			return NULL;
+		}
+#ifdef DEBUG_TCP_CLI
+		PRINTF ("%s: Written %d bytes\r\n", tag, strlen(RW_data.w_data));
+#endif
+//		vPortFree (RW_data.w_data); //!!!!!!!!!!!!!
+
+		// receive the data from the server
+		err = netconn_recv (pTcpClient->conn, &buf);
+		if (err == ERR_OK)
+		{
+			netbuf_data (buf, (void**)&RW_data.r_data, &len);
+			*(RW_data.r_data+len)=0;
+#ifdef DEBUG_TCP_CLI
+			PRINTF ("%s: Received %d bytes from server: %s\r\n", tag, len, RW_data.r_data);
+#endif
+			netbuf_delete(buf);
+		}
+		else if (err == ERR_TIMEOUT)
+		{
+#ifdef DEBUG_TCP_CLI
+			PRINTF ("%s: Receive timeout\r\n", tag);
+#endif
+		}
+		else
+		{
+#ifdef DEBUG_TCP_CLI
+			PRINTF ("%s: Receive error=%d\r\n", tag, err);
+#endif
+//			// smtp_status <- 0
+//			pTcpClient->application ((void *)&RW_data);
+
+			netbuf_delete (buf);
+			break;
+		}
+		osDelay (1000);
 	}
-	conn_struct_t *pTcpConn = TcpConnStruct;
-	for (uint8_t i = 0; i < TCP_CONNECTION_MAX; i++)
-	{
-		pTcpConn->number = '1'+i;
-		pTcpConn->conn = NULL;
-		pTcpConn++;
-	}
-    const osThreadAttr_t tcpTask_attributes = {
-        .name = "TcpServerTask",
-        .stack_size = 512 * 3,
-        .priority = (osPriority_t) osPriorityNormal,
-    	};
-    return osThreadNew(TcpServer_thread, (void *)pTcpServer, &tcpTask_attributes);
+	return;
 }
 
 
-void RunAppServer 	(
-					uint32_t app
-					)
-{
-	TcpServerTaskHandle = StartTcpServer ((void *)&app);
-}
-
-
-// ---------------------------------------------------------------------------------------
-void my_callback	(
-					struct netconn *conn,
-					enum netconn_evt evt, u16_t len
-					)
+static void my_callback	(
+						struct netconn *conn,
+						enum netconn_evt evt, u16_t len
+						)
 {
 	(void) len;
+#ifdef DEBUG_TCP_CLI
+    const char *tag = "my_callback";
+#endif
 
-#ifdef DEBUG_TCP_PROC
+#ifdef DEBUG_TCP_CLI
 	wait_time = (sys_now() - time1 == 0) ? 1: sys_now() - time1;
-	PRINTF ("my_callback: Wait for connection %ld ms\r\n", wait_time);
+	PRINTF ("%s: Wait for connection %ld ms\r\n", tag, wait_time);
 #endif
 	switch (evt)
 	{
@@ -223,34 +382,33 @@ void my_callback	(
 				break;
 			if (sid_Connected != NULL)
 			{
-#ifdef DEBUG_TCP_PROC
+#ifdef DEBUG_TCP_CLI
 				wait_time = (sys_now() - time1 == 0) ? 1: sys_now() - time1;
-				PRINTF ("my_callback: Connection is Ok at %ld ms\r\n", wait_time);
+				PRINTF ("%s: Connection is Ok at %ld ms\r\n", tag, wait_time);
 #endif
 				osSemaphoreRelease(sid_Connected);
 			}
 			break;
+
 		default:
-#ifdef DEBUG_TCP_PROC
-			PRINTF ("my_callback: No connection, evt %d\r\n", evt);
+#ifdef DEBUG_TCP_CLI
+			PRINTF ("%s: No connection, evt %d\r\n", tag, evt);
 #endif
 			break;
 	}
 }
 
 
-static void TcpClient_thread	(
+static void TcpClient1_thread	(
 								void *arg
 								)
 {
-	net_struct_t *pTcpClient = (net_struct_t *)arg;
 	struct netconn *conn = NULL;
-	struct netbuf *buf = NULL;
-	uint16_t len;
+	net_struct_t *pTcpClient = (net_struct_t *)arg;
 	osStatus_t 	val;
-	err_t 		err;
-	uint16_t 	src_port;
-	data_struct_t RW_data = {NULL};
+#ifdef DEBUG_TCP_CLI
+	const char *tag = "TcpClient1Thread";
+#endif
 
 	sid_Connected = osSemaphoreNew (1, 0, NULL);
 	vQueueAddToRegistry (sid_Connected, "sid_Connected");
@@ -258,91 +416,58 @@ static void TcpClient_thread	(
 	conn = netconn_new_with_callback (NETCONN_TCP, my_callback);
 	if (conn == NULL)
 	{
-#ifdef DEBUG_TCP_PROC
-		PRINTF ("TcpClientThread: Can't create connection");
+#ifdef DEBUG_TCP_CLI
+		PRINTF ("%s: Can't create connection", tag);
 #endif
 		goto exit2;
 	}
-	// Bind connection to random local port
-	src_port = (uint16_t) SysTick->VAL;
-	err = netconn_bind (conn, IP_ADDR_ANY, src_port);
-	if (err != ERR_OK)
-	{
-#ifdef DEBUG_TCP_PROC
-		PRINTF ("TcpClientThread: Can't bind TCP connection, err = %d", err);
-#endif
-		err = netconn_delete (conn);
-		goto exit2;
-	}
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpClientThread: Try to connect to port %d\r\n", pTcpClient->port);
+#ifdef DEBUG_TCP_CLI
+	PRINTF ("%s: Try to connect to port %d\r\n", tag, pTcpClient->port);
 	time1 = sys_now ();
 #endif
 	// connect to remote server at port
 	netconn_set_nonblocking (conn, 1);
-	err = netconn_connect (conn, &pTcpClient->ip, pTcpClient->port);
+	netconn_connect (conn, &pTcpClient->ip, pTcpClient->port);
 	val = osSemaphoreAcquire (sid_Connected, 1000U);
 	if (val != osOK)
 	{
-#ifdef DEBUG_TCP_PROC
-		PRINTF ("TcpClientThread: Connection dropped\r\n");
+#ifdef DEBUG_TCP_CLI
+		PRINTF ("%s: Connection dropped\r\n", tag);
 #endif
 		netconn_set_nonblocking (conn, 0);
 		conn->callback = NULL;
-		err = netconn_delete (conn);
+		netconn_delete (conn);
 		conn = NULL;
 		goto exit2;
 	}
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpClientThread: Connected to server\r\n");
+#ifdef DEBUG_TCP_CLI
+	PRINTF ("%s: Connected to server %s:%d\r\n", tag, ipaddr_ntoa (&pTcpClient->ip), pTcpClient->port);
 #endif
 	netconn_set_nonblocking (conn, 0);
 	conn->callback = NULL;
+	netconn_set_recvtimeout (conn, 2000);
 
-
-	netconn_set_recvtimeout (conn, 10000);
-	while (1)
+	pTcpClient->conn = conn;
+	switch (pTcpClient->port)
 	{
-		// receive the data from the client
-		if (netconn_recv (conn, &buf) == ERR_OK)
-		{
-			netbuf_data (buf, (void**)&RW_data.r_data, &len);
-			pTcpClient->application ((void *)&RW_data);
-
-			if (RW_data.w_data == NULL)
-				break;
-
-			// send the message back to the client
-			if (netconn_write (conn, (const unsigned char*)RW_data.w_data, (size_t)strlen (RW_data.w_data), NETCONN_COPY) != ERR_OK)
-			{
-#ifdef DEBUG_TCP_PROC
-				PRINTF ("TcpClientThread: Write error\r\n\n");
-#endif
-				break;
-			}
-			vPortFree (RW_data.w_data);
-			netbuf_delete(buf);
-		}
-		else
-		{
-#ifdef DEBUG_TCP_PROC
-			PRINTF ("TcpClientThread: Receive error\r\n\n");
-#endif
-			// smtp_status <- 0
-			RW_data.r_data = NULL;
-			pTcpClient->application ((void *)&RW_data);
+		case SMTP_PORT:
+			TcpClientConn (pTcpClient);
 			break;
-		}
+
+		case SMTPS_PORT:
+			TlsClientContext (pTcpClient);
+			break;
+
+		default:
+			break;
 	}
-	vPortFree (RW_data.w_data);
-	netbuf_delete (buf);
-	err = netconn_close (conn);
-	err = netconn_delete (conn);
-	conn = NULL;
+	netconn_close (pTcpClient->conn);
+	netconn_delete (pTcpClient->conn);
+	pTcpClient->conn = NULL;
 
 exit2:
-#ifdef DEBUG_TCP_PROC
-	PRINTF ("TcpClientThread: Connection closed\r\n");
+#ifdef DEBUG_TCP_CLI
+	PRINTF ("%s: Connection closed\r\n", tag);
 #endif
 	if (sid_Connected)
 	{
@@ -354,38 +479,100 @@ exit2:
 }
 
 
-osThreadId_t StartTcpClient (
-							void *arg
-							)
+static void TcpClient_thread	(
+								void *arg
+								)
 {
-	uint32_t app = *(uint32_t *)arg;
-	net_struct_t *pTcpClient = &TcpClientStruct;
+	net_struct_t *pTcpClient = (net_struct_t *)arg;
+	struct netconn *conn = NULL;
+#ifdef DEBUG_TCP_CLI
+	const char *tag = "TcpClientThread";
+#endif
 
-	switch (app)
+	// Create a new connection identifier
+	conn = netconn_new (NETCONN_TCP);
+	if (conn == NULL)
 	{
-		case SMTP_PROT:
-			// Set remote IP-address & port
-			ip4addr_aton (SMTP_SERVER_ADDR, &pTcpClient->ip);
-			pTcpClient->port = SMTP_SERVER_PORT;
-			pTcpClient->application = SmtpProcess;//StartSmtpClient;//
+#ifdef DEBUG_TCP_CLI
+		PRINTF ("%s: Can't create connection\r\n", tag);
+#endif
+		osThreadExit ();
+	}
+	netconn_set_recvtimeout (conn, 5000);
+	// connect to remote server at port
+#ifdef DEBUG_TCP_CLI
+	PRINTF ("%s: Try to connect to port %d\r\n", tag, pTcpClient->port);
+	time1 = sys_now ();
+#endif
+	while (netconn_connect (conn, &pTcpClient->ip, pTcpClient->port) != ERR_OK)
+	{
+#ifdef DEBUG_TCP_CLI
+		wait_time = (sys_now() - time1 == 0) ? 1: sys_now() - time1;
+		PRINTF ("%s: Connection dropped after %ld ms\r\n", tag, wait_time);
+#endif
+//		osDelay(1000);
+		goto cleanup;
+	}
+#ifdef DEBUG_TCP_CLI
+	PRINTF ("%s: Connected to server %s:%d\r\n", tag, ipaddr_ntoa (&pTcpClient->ip), pTcpClient->port);
+#endif
+
+	pTcpClient->conn = conn;
+	switch (pTcpClient->port)
+	{
+		case SMTP_PORT:
+			TcpClientConn (pTcpClient);
+			break;
+
+		case SMTPS_PORT:
+			TlsClientContext (pTcpClient);
 			break;
 
 		default:
-			return NULL;
+			break;
+	}
+
+cleanup:
+	netconn_close (conn);
+	netconn_delete (conn);
+#ifdef DEBUG_TCP_CLI
+	PRINTF ("%s: Connection closed\r\n", tag);
+#endif
+	osThreadExit ();
+}
+
+
+void RunAppTcpClient(
+					uint16_t port
+					)
+{
+	net_struct_t *pTcpClient = &TcpClientStruct;
+
+	switch (port)
+	{
+		case SMTP_PORT:
+			// Set remote IP-address & port
+			ip4addr_aton (SMTP_SERVER_ADDR, &pTcpClient->ip);
+			pTcpClient->port = SMTP_PORT;
+			pTcpClient->application = SmtpClient;
+			break;
+
+		case SMTPS_PORT:
+			// Set remote IP-address & port
+			ip4addr_aton (SMTPS_SERVER_ADDR, &pTcpClient->ip);
+			pTcpClient->port = SMTPS_PORT;
+			pTcpClient->application = SmtpClient;
+			break;
+
+		default:
+			return;
 	}
 	const osThreadAttr_t tcpTask_attributes = {
         .name = "TcpClientTask",
-        .stack_size = 3*512,
+        .stack_size = 8192,
         .priority = (osPriority_t) osPriorityNormal,
     };
-    return osThreadNew (TcpClient_thread, (void *)pTcpClient, &tcpTask_attributes);
+	TcpClientTaskHandle = osThreadNew (TcpClient1_thread, (void *)pTcpClient, &tcpTask_attributes);
 }
 
-
-void RunAppClient 	(
-					uint32_t app
-					)
-{
-	TcpClientTaskHandle = StartTcpClient ((void *)&app);
-}
 

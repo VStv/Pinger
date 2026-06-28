@@ -8,7 +8,6 @@
 #ifndef INC_PING_PROC_H_
 #define INC_PING_PROC_H_
 
-//#include "console_uart.h"
 
 #include "main.h"
 #include "cmsis_os.h"
@@ -26,9 +25,11 @@
 
 #include <string.h>
 
+#include "console_uart.h"
+#include "smtp_proc.h"
 
 
-
+//#define DEBUG_PING_PROC
 
 #define ALARM_LED_RED			(1<<0)
 #define ALARM_LED_BLUE			(1<<1)
@@ -40,14 +41,14 @@
 #define PING_DELAY     			1000
 
 
-typedef struct
+typedef struct ping_struc
 {
 	ip4_addr_t 		ip_host;
 	uint16_t		n_pings;
 } ping_struc_t;
 
 
-typedef struct
+typedef struct reply_struc
 {
 	uint16_t		ping_cnt;
 	uint16_t		ttl;
@@ -58,7 +59,6 @@ typedef struct
 	uint16_t		alarm_cnt;
 	uint16_t		status;
 } reply_struc_t;
-
 
 
 osThreadId_t StartPings (void *);

@@ -24,9 +24,13 @@ uint8_t				alrm_led;
 
 uint32_t			email_is_OK;
 
+#ifdef DEBUG_PING_PROC
 extern char 				*pp;
+#endif
 
-extern void RunAppClient (uint32_t);
+
+
+extern void RunAppTcpClient (uint16_t);
 
 
 
@@ -356,7 +360,7 @@ static void StartSignal (void)
 	// send e-mail
 	if (email_is_OK)
 	{
-		RunAppClient (SMTP_PROT);
+		RunAppTcpClient (SMTP_PORT);
 	}
 
 	// send telegram message: tg_send_message ()

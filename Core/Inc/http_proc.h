@@ -10,7 +10,6 @@
 
 #include "settings_proc.h"
 #include "ping_proc.h"
-//#include "console_uart.h"
 
 #include "main.h"
 #include "cmsis_os.h"
@@ -23,15 +22,20 @@
 
 #include "lwip/apps/fs.h"
 
+//#include "console_uart.h"
+
+
 #include "queue.h"
 #include <string.h>
 #include <stdlib.h>
 
 
-#define HTTP_SERVER_PORT		80
+#define HTTP_PORT		80
+#define HTTPS_PORT		443
 
 
-typedef struct
+
+typedef struct alrm_struct
 {
 	uint8_t 		*unrepl;
 	char 			*email;
@@ -43,7 +47,7 @@ typedef struct
 
 
 void RunHttpServer (void);
-void HttpProcess (void *);
+void HttpServer (void *);
 
 
 #endif /* INC_HTTP_PROC_H_ */

@@ -1,0 +1,44 @@
+/*
+ * tls_proc.h
+ *
+ *  Created on: Nov 16, 2024
+ *      Author: dis_stv
+ */
+
+#ifndef INC_TLS_PROC_H_
+#define INC_TLS_PROC_H_
+
+#include "main.h"
+#include "cmsis_os.h"
+
+#include "queue.h"
+#include <string.h>
+#include <stdlib.h>
+
+#include "tcp_proc.h"
+#include "http_proc.h"
+#include "console_uart.h"
+
+#include "tls_dat.h"
+
+
+//#define DEBUG_TLS_NETCONN_RCV
+//#define DEBUG_TLS_FREE
+//#define DEBUG_TLS_SERV
+#define DEBUG_TLS_CLI
+
+
+typedef struct client_args {
+    struct netconn *conn;
+    struct netbuf *rx_buf;
+    uint8_t *rx_ptr;
+    u16_t rx_len;
+} client_args_t;
+
+
+//uint32_t TlsConfig (void);
+void TlsServerContext_thread (void *);
+void TlsClientContext (void *);
+
+
+#endif /* INC_TLS_PROC_H_ */

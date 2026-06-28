@@ -22,8 +22,11 @@
 #include <stdlib.h>
 
 
-#define SMTP_SERVER_PORT		25
+#define SMTP_PORT		25
+#define SMTPS_PORT		465
+
 #define SMTP_SERVER_ADDR		"192.168.10.11"
+#define SMTPS_SERVER_ADDR		"192.168.10.11"
 
 
 
@@ -31,6 +34,7 @@
 /** State for SMTP client state machine */
 enum smtp_session_state {
   SMTP_NULL,
+  SMTP_BANNER,
   SMTP_HELO,
   SMTP_AUTH_PLAIN,
   SMTP_AUTH_LOGIN_UNAME,
@@ -44,9 +48,7 @@ enum smtp_session_state {
 };
 
 
-void SmtpProcess (void *);
-//-----------------------------
-void StartSmtpClient (void *);
+void SmtpClient (void *);
 
 
 

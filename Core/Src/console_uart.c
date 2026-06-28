@@ -45,7 +45,7 @@ void ConsoleFree (void)
 
 static void ConsoleTask (void * argument)
 {
-    mid_ConsoleData = osMessageQueueNew (8, sizeof(strng1), NULL);
+    mid_ConsoleData = osMessageQueueNew (10, sizeof(strng1), NULL);
     vQueueAddToRegistry (mid_ConsoleData, "mid_ConsoleData");
     sid_ConsoleUartReady = osSemaphoreNew (1, 0, NULL);
     vQueueAddToRegistry (sid_ConsoleUartReady, "sid_ConsoleUartReady");
@@ -86,9 +86,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 // --------------------------------------------------------------------------
 static void UartRxTask(void * argument)
 {
-//	uint32_t err;
 	char uart_rx_data[UART_RX_DATA_MAX_SIZE];
-//	char str[UART_RX_DATA_MAX_SIZE];
 
 	mid_UartRxData = osMessageQueueNew(4, UART_RX_DATA_MAX_SIZE, NULL);
     vQueueAddToRegistry(mid_UartRxData, "mid_UartRxData");
