@@ -22,27 +22,23 @@
 #include "tls_dat.h"
 
 
-#define DEBUG_TLS_PROC
-//#define TLS_PROC_1
-#define LOOP_1
+//#define DEBUG_TLS_NETCONN_RCV
+//#define DEBUG_TLS_FREE
+//#define DEBUG_TLS_SERV
+#define DEBUG_TLS_CLI
 
 
-#ifndef TLS_PROC_1
-#define TLS_CONTEXT_MAX 		1
-#endif
+typedef struct client_args {
+    struct netconn *conn;
+    struct netbuf *rx_buf;
+    uint8_t *rx_ptr;
+    u16_t rx_len;
+} client_args_t;
 
 
-
-typedef struct context_struct {
-	mbedtls_net_context *sock;
-	mbedtls_ssl_context	*ssl;
-	char 				number;
-} context_struct_t;
-
-
-
-
-void RunAppTlsServer (uint32_t);
+//uint32_t TlsConfig (void);
+void TlsServerContext_thread (void *);
+void TlsClientContext (void *);
 
 
 #endif /* INC_TLS_PROC_H_ */

@@ -30,8 +30,8 @@
 #include <stdlib.h>
 
 
-#define HTTP_SERVER_PORT		80
-#define HTTPS_SERVER_PORT		443
+#define HTTP_PORT		80
+#define HTTPS_PORT		443
 
 
 

@@ -5,915 +5,548 @@
  *      Author: dis_stv
  */
 
-#include <tls_proc.h>
-
-osThreadId_t 					TlsServerTaskHandle = NULL;
-net_struct_t					TlsServerStruct;
+#include "tls_proc.h"
 
 mbedtls_x509_crt 				srvcert;
 mbedtls_pk_context 				pkey;
-
-static const char 				*pers = "ssl_server";
 
 const char 						serv_cert[] = SERVER_SERT;
 const size_t 					serv_cert_len = sizeof (serv_cert);
 const char 						serv_key[] = SERVER_SERT_KEY;
 const size_t 					serv_key_len = sizeof (serv_key);
 
-extern mbedtls_ssl_config 		conf;
-extern mbedtls_ctr_drbg_context ctr_drbg;
-extern mbedtls_entropy_context 	entropy;
 
 
-#ifdef DEBUG_TLS_PROC
+#if defined(DEBUG_TLS_SERV) || defined(DEBUG_TLS_NETCONN_RCV) || defined(DEBUG_TLS_FREE) || defined(DEBUG_TLS_CLI)
 extern char 					*pp;
 #endif
 
+// ---------------------------------  TLS Server  ----------------------------------------
 
-
-#ifdef TLS_PROC_1
-
-osThreadId_t 					TlsContextTaskHandle = NULL;
-osSemaphoreId_t 				sid_TlsContextProcessed = NULL;
-
-extern mbedtls_ssl_context 		ssl;
-
-
-
-static void TlsContext_thread 	(
-								void *arg
-								)
-{
-	int ret = 1;
-	int len;
-	data_struct_t RW_data = {NULL};
-
-	// 6. Handshake
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsContext_thread: Performing the SSL/TLS handshake... ");
-#endif
-	while ((ret = mbedtls_ssl_handshake (&ssl)) != 0)
-	{
-		if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF(" failed\n  ! mbedtls_ssl_handshake returned %d\r\n", ret);
-#endif
-			goto exit2;
-		}
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-	int read_num = 0, write_num = 0;
-#endif
-/*
-	while (1)
-	{
-		// 7. Read the HTTP Request
-#ifdef DEBUG_TLS_PROC
-		PRINTF("  < Read from client:");
-#endif
-		do
-		{
-			ret = mbedtls_ssl_read (&ssl, (unsigned char *) RW_data.r_data, len);
-			if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
-			{
-				continue;
-			}
-			if (ret <= 0)
-			{
-				switch (ret)
-				{
-					case MBEDTLS_ERR_SSL_TIMEOUT:
-#ifdef DEBUG_TLS_PROC
-						PRINTF(" reading timeout\n");
-#endif
-						break;
-
-					case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-#ifdef DEBUG_TLS_PROC
-						PRINTF(" connection was closed gracefully\n");
-#endif
-						break;
-
-					case MBEDTLS_ERR_NET_CONN_RESET:
-#ifdef DEBUG_TLS_PROC
-						PRINTF(" connection was reset by peer\n");
-#endif
-						break;
-
-					default:
-#ifdef DEBUG_TLS_PROC
-						PRINTF(" mbedtls_ssl_read returned %d\n", ret);
-#endif
-						break;
-				}
-//				HAL_Delay (200);
-				break;
-			}
-			len = ret;
-#ifdef DEBUG_TLS_PROC
-//			PRINTF(" %d bytes read\n\n%s", len, (char *) RW_data.r_data);
-			read_num++;
-			PRINTF(" %d bytes read %d times\r\n", len, read_num);
-#endif
-			if (ret > 0)
-			{
-				break;
-			}
-		} while (1);
-		if (ret < 0)
-			break;
-
-		// Application
-		TlsServerStruct.application ((void *)&RW_data);
-
-		// 8. Write the 200 Response
-#ifdef DEBUG_TLS_PROC
-		PRINTF("  > Write to client:");
-#endif
-
-		while ((ret = mbedtls_ssl_write (&ssl, (const unsigned char *) RW_data.w_data, (size_t)strlen (RW_data.w_data))) <= 0)
-		{
-			if (ret == MBEDTLS_ERR_NET_CONN_RESET)
-			{
-#ifdef DEBUG_TLS_PROC
-				PRINTF(" failed\n  ! peer closed the connection\r\n");
-#endif
-				goto exit2;
-			}
-			if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-			{
-#ifdef DEBUG_TLS_PROC
-				PRINTF(" failed\n  ! mbedtls_ssl_write returned %d\r\n", ret);
-#endif
-				goto exit2;
-			}
-		}
-#ifdef DEBUG_TLS_PROC
-//		PRINTF(" %d bytes written\n\n%s\n", ret, (char *)RW_data.w_data);
-		write_num++;
-		PRINTF(" %d bytes written %d times\r\n", ret, write_num);
-#endif
-		if (RW_data.w_data != NULL)
-		{
-			vPortFree (RW_data.w_data);
-		}
-	}
-*/
-#ifdef DEBUG_TLS_PROC
-	PRINTF("  . Closing the connection...");
-#endif
-	while ((ret = mbedtls_ssl_close_notify (&ssl)) < 0)
-	{
-		if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF(" failed\n  ! mbedtls_ssl_close_notify returned %d\r\n", ret);
-#endif
-			goto exit2;
-		}
-	}
-	if (ret == 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF(" ok\n");
-#endif
-	}
-
-exit2:
-    osSemaphoreRelease (sid_TlsContextProcessed);
-    TlsContextTaskHandle = NULL;
-    osThreadExit ();
-}
+extern osSemaphoreId_t 			sid_TcpConnCount;
 
 /*
-static void TlsContext1_thread 	(
-								void *arg
-								)
-{
-	int ret = 1;
-	int len;
-	data_struct_t RW_data = {NULL};
-
-	// 6. Handshake
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsContext_thread: Performing the SSL/TLS handshake... ");
-#endif
-	while ((ret = mbedtls_ssl_handshake (&ssl)) != 0)
-	{
-		if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF(" failed\n  ! mbedtls_ssl_handshake returned %d\r\n", ret);
-#endif
-			goto exit2;
-		}
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	// 7. Read the HTTP Request
-#ifdef DEBUG_TLS_PROC
-	PRINTF("  < Read from client:");
-#endif
-	do
-	{
-		ret = mbedtls_ssl_read (&ssl, (unsigned char *) RW_data.r_data, len);
-		if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
-		{
-			continue;
-		}
-		if (ret <= 0)
-		{
-			switch (ret)
-			{
-				case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-#ifdef DEBUG_TLS_PROC
-					PRINTF(" connection was closed gracefully\n");
-#endif
-					break;
-
-				case MBEDTLS_ERR_NET_CONN_RESET:
-#ifdef DEBUG_TLS_PROC
-					PRINTF(" connection was reset by peer\n");
-#endif
-					break;
-
-				default:
-#ifdef DEBUG_TLS_PROC
-					PRINTF(" mbedtls_ssl_read returned %d\n", ret);
-#endif
-					break;
-			}
-//			HAL_Delay (200);
-			break;
-		}
-		len = ret;
-#ifdef DEBUG_TLS_PROC
-		PRINTF(" %d bytes read\n\n%s", len, (char *) RW_data.r_data);
-#endif
-		if (ret > 0)
-		{
-			break;
-		}
-	} while (1);
-
-	// Application
-	TlsServerStruct.application ((void *)&RW_data);
-	// 8. Write the 200 Response
-#ifdef DEBUG_TLS_PROC
-	PRINTF("  > Write to client:");
-#endif
-
-	while ((ret = mbedtls_ssl_write (&ssl, (const unsigned char *) RW_data.w_data, (size_t)strlen (RW_data.w_data))) <= 0)
-	{
-		if (ret == MBEDTLS_ERR_NET_CONN_RESET)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF(" failed\n  ! peer closed the connection\r\n");
-#endif
-			goto exit2;
-		}
-		if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF(" failed\n  ! mbedtls_ssl_write returned %d\r\n", ret);
-#endif
-			goto exit2;
-		}
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF(" %d bytes written\n\n%s\n", ret, (char *)RW_data.w_data);
-#endif
-	if (RW_data.w_data != NULL)
-	{
-		vPortFree (RW_data.w_data);
-	}
-
-#ifdef DEBUG_TLS_PROC
-	PRINTF("  . Closing the connection...");
-#endif
-	while ((ret = mbedtls_ssl_close_notify (&ssl)) < 0)
-	{
-		if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF(" failed\n  ! mbedtls_ssl_close_notify returned %d\r\n", ret);
-#endif
-			goto exit2;
-		}
-	}
-	if (ret == 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF(" ok\n");
-#endif
-	}
-
-exit2:
-    osSemaphoreRelease (sid_TlsContextProcessed);
-    TlsContextTaskHandle = NULL;
-    osThreadExit ();
-}
-*/
-
-static void TlsServer_thread 	(
-								void *arg
-								)
-{
-	net_struct_t *pTlsServer = (net_struct_t *)arg;
-	int ret = 1;
-	char port_buf[10];
-	char client_adr[14];
-	size_t len_ip;
-	mbedtls_net_context	listen_fd, client_fd;
-
-	MX_MBEDTLS_Init();
-	listen_fd.fd = -1;
-	client_fd.fd = -1;
-	mbedtls_pk_init (&pkey);
-
-#ifdef DEBUG_TLS_PROC
-	uint16_t client_port;
-	uint8_t deb_var = 0;
-#endif
-
-	// 1. Load the certificates and private RSA key
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsServerThread: Loading the certificate ... ");
-#endif
-	ret = mbedtls_x509_crt_parse (&srvcert, (const unsigned char*) serv_cert, serv_cert_len);
-	if (ret != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  !  mbedtls_x509_crt_parse returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-	ret =  mbedtls_pk_parse_key (&pkey, (const unsigned char *) serv_key, serv_key_len, NULL, 0);
-	if ( ret != 0 )
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  !  mbedtls_pk_parse_key returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	// 2. Setup the listening TCP socket
-	itoa (pTlsServer->port, port_buf, 10);
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsServerThread: Bind on https://localhost:%s/ ... ", port_buf);
-#endif
-	if ((ret = mbedtls_net_bind (&listen_fd, NULL, port_buf, MBEDTLS_NET_PROTO_TCP)) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_net_bind returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	// 3. Seed the RNG
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsServerThread: Seeding the random number generator... ");
-#endif
-	if ((ret = mbedtls_ctr_drbg_seed (&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen( (char *)pers))) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_ctr_drbg_seed returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	// 4. Setup stuff
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsServerThread: Setting up the SSL data.... ");
-#endif
-	if ((ret = mbedtls_ssl_config_defaults (&conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_ssl_config_defaults returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-	mbedtls_ssl_conf_rng (&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-	mbedtls_ssl_conf_ca_chain (&conf, srvcert.next, NULL);
-	if ((ret = mbedtls_ssl_conf_own_cert (&conf, &srvcert, &pkey)) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_ssl_conf_own_cert returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-
-	mbedtls_ssl_conf_read_timeout( &conf, 2000 );
-
-	if ((ret = mbedtls_ssl_setup (&ssl, &conf)) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_ssl_setup returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	mbedtls_net_free (&client_fd);
-	mbedtls_ssl_session_reset (&ssl);
-	sid_TlsContextProcessed = osSemaphoreNew (1, 0, NULL);
-	vQueueAddToRegistry (sid_TlsContextProcessed, "sid_TlsContextProcessed");
-
-	while (1)
-	{
-		// 5. Wait until a client connects
-#ifdef DEBUG_TLS_PROC
-		PRINTF("TlsServerThread: Waiting for a remote connection... ");
-#endif
-		if ((ret = mbedtls_net_accept (&listen_fd, &client_fd, (void *)&client_adr, sizeof(client_adr), &len_ip)) != 0)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF("failed\n  ! mbedtls_net_accept returned %d\r\n", ret);
-#endif
-			break;
-		}
-		mbedtls_ssl_set_bio (&ssl, &client_fd, mbedtls_net_send, NULL, mbedtls_net_recv_timeout);
-#ifdef DEBUG_TLS_PROC
-		PRINTF("ok\r\n\r\n");
-		++deb_var;
-		client_port = ((uint16_t)client_adr[4] << 8) + client_adr[5];
-		PRINTF("TlsServerThread: Connection %d to port %d\r\n", deb_var, client_port);
-#endif
-		const osThreadAttr_t tlsContext_attributes = {
-			.name = "TlsContextTask",
-			.priority = (osPriority_t) osPriorityNormal,
-			.stack_size = 512 * 10,
-		};
-		TlsContextTaskHandle = osThreadNew (TlsContext_thread, NULL, &tlsContext_attributes);
-
-		osSemaphoreAcquire (sid_TlsContextProcessed, osWaitForever);
-		mbedtls_net_free (&client_fd);
-		mbedtls_ssl_session_reset (&ssl);
-	}
-
-exit1:
-	mbedtls_net_free ( &client_fd );
-	mbedtls_net_free ( &listen_fd );
-	mbedtls_x509_crt_free ( &srvcert );
-	mbedtls_pk_free ( &pkey );
-	mbedtls_ssl_free ( &ssl );
-	mbedtls_ssl_config_free ( &conf );
-	mbedtls_ctr_drbg_free ( &ctr_drbg );
-	mbedtls_entropy_free ( &entropy );
-
-	if (sid_TlsContextProcessed != NULL)
-	{
-		osSemaphoreDelete (sid_TlsContextProcessed);
-	}
-	TlsServerTaskHandle = NULL;
-	osThreadExit ();
-}
-
-
-static osThreadId_t StartTlsServer (
-							void *arg
-							)
-{
-	uint32_t app = *(uint32_t *)arg;
-	net_struct_t *pTlsServer = &TlsServerStruct;
-
-	switch (app)
-	{
-		case HTTPS_PROT:
-			// Set local port
-			pTlsServer->port = HTTPS_SERVER_PORT;
-			pTlsServer->application = HttpServer;
-			break;
-		default:
-			return NULL;
-	}
-
-    const osThreadAttr_t tlsTask_attributes = {
-        .name = "TlsServerTask",
-        .stack_size = 512 * 8,
-        .priority = (osPriority_t) osPriorityNormal,
-    };
-	return osThreadNew(TlsServer_thread, (void *)pTlsServer, &tlsTask_attributes);
-}
-
-#else
-
-osThreadId_t 					TlsContextTaskHandle[TLS_CONTEXT_MAX] = {NULL};
-context_struct_t 				TlsContextArray[TLS_CONTEXT_MAX];
-mbedtls_ssl_context 			ssl_inst[TLS_CONTEXT_MAX];
-
-
-static void TlsContext_thread 	(
-								void *arg
-								)
-{
-	context_struct_t *pTlsContext = (context_struct_t *)arg;
-	int ret = 1;
-	int len;
-	data_struct_t RW_data = {NULL};
-	int goexit = 0;
-
-//----------------------------------------------------------------------------------------
-	// 6. Handshake
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsContextThread: Performing the SSL/TLS handshake... ");
-#endif
-	while ((ret = mbedtls_ssl_handshake (pTlsContext->ssl)) != 0)
-	{
-		if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF(" failed\n  ! mbedtls_ssl_handshake returned %d\r\n", ret);
-#endif
-			goto exit2;
-		}
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-//----------------------------------------------------------------------------------------
-
-#ifdef DEBUG_TLS_PROC
-	int read_num = 0, write_num = 0;
-#endif
-
-
-	while (1)
-	{
-		// 7. Read the HTTP Request
-#ifdef DEBUG_TLS_PROC
-		PRINTF("  < Read from client:");
-#endif
-		do
-		{
-			ret = mbedtls_ssl_read (pTlsContext->ssl, (unsigned char *) RW_data.r_data, len);
-			if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
-			{
-				continue;
-			}
-			if (ret <= 0)
-			{
-				switch (ret)
-				{
-					case MBEDTLS_ERR_SSL_TIMEOUT:
-#ifdef DEBUG_TLS_PROC
-						PRINTF(" reading timeout\n");
-#endif
-						break;
-
-					case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-#ifdef DEBUG_TLS_PROC
-						PRINTF(" connection was closed gracefully\n");
-#endif
-						break;
-
-					case MBEDTLS_ERR_NET_CONN_RESET:
-#ifdef DEBUG_TLS_PROC
-						PRINTF(" connection was reset by peer\n");
-#endif
-						break;
-
-					default:
-#ifdef DEBUG_TLS_PROC
-						PRINTF(" mbedtls_ssl_read returned %d\n", ret);
-#endif
-						break;
-				}
-//				HAL_Delay (200);
-				break;
-			}
-			len = ret;
-#ifdef DEBUG_TLS_PROC
-			read_num++;
-			PRINTF(" %d bytes read %d times\r\n", len, read_num);
-#endif
-			if (ret > 0)
-			{
-				break;
-			}
-		} while (1);
-		if (ret < 0)
-			break;
-
-		// Application
-		TlsServerStruct.application ((void *)&RW_data);
-
-		// 8. Write the 200 Response
-#ifdef DEBUG_TLS_PROC
-		PRINTF("  > Write to client:");
-#endif
-
-		while ((ret = mbedtls_ssl_write (pTlsContext->ssl, (const unsigned char *) RW_data.w_data, (size_t)strlen (RW_data.w_data))) <= 0)
-		{
-			if (ret == MBEDTLS_ERR_NET_CONN_RESET)
-			{
-#ifdef DEBUG_TLS_PROC
-				PRINTF(" failed\n  ! peer closed the connection\r\n");
-#endif
-				goto exit2;
-			}
-			if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-			{
-#ifdef DEBUG_TLS_PROC
-				PRINTF(" failed\n  ! mbedtls_ssl_write returned %d\r\n", ret);
-#endif
-				goto exit2;
-			}
-		}
-#ifdef DEBUG_TLS_PROC
-		write_num++;
-		PRINTF(" %d bytes written %d times\r\n", ret, write_num);
-#endif
-		if (RW_data.w_data != NULL)
-		{
-			vPortFree (RW_data.w_data);
-		}
-	}
-
-	osDelay (200);
-
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsContextThread:  Closing the connection...");
-#endif
-
-//	osThreadSuspend (TlsServerTaskHandle);
-	while ((ret = mbedtls_ssl_close_notify (pTlsContext->ssl)) < 0)
-	{
-		if(ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE)
-		{
-			goexit = 1;
-			break;
-		}
-	}
-//	osThreadResume (TlsServerTaskHandle);
-
-	if(goexit)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF(" failed\n  ! mbedtls_ssl_close_notify returned %d\r\n", ret);
-#endif
-		goexit = 0;
-		goto exit2;
-	}
-	if (ret == 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF(" ok\n");
-#endif
-	}
-
-exit2:
-	mbedtls_net_free (pTlsContext->sock);
-	mbedtls_ssl_session_reset (pTlsContext->ssl);
-	pTlsContext->ssl = NULL;
-#ifdef DEBUG_TLS_PROC
-	PRINTF ("TlsContextThread: Socket %c closed\r\n\n", pTlsContext->number);
-#endif
-	osThreadExit ();
-}
-
-
-static void TlsServer_thread 	(
-								void *arg
-								)
-{
-	net_struct_t *pTlsServer = (net_struct_t *)arg;
-	int ret = 1;
-	char port_buf[10];
-	char client_adr[14];
-	size_t len_ip;
-	context_struct_t *pTlsContext;
-	mbedtls_net_context	listen_fd;
-	mbedtls_net_context	sock_inst[TLS_CONTEXT_MAX];
-
-	MX_MBEDTLS_Init();
-	mbedtls_net_free (&listen_fd);
-	for (uint8_t i = 0; i < TLS_CONTEXT_MAX; i++)
-	{
-		mbedtls_net_free (&sock_inst[i]);
-		mbedtls_ssl_init (&ssl_inst[i]);
-	}
-	mbedtls_pk_init (&pkey);
-
-#ifdef DEBUG_TLS_PROC
-	uint16_t client_port;
-	uint8_t deb_var = 0;
-#endif
-
-	// 1. Load the certificates and private RSA key
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsServerThread: Loading the certificate ... ");
-#endif
-	ret = mbedtls_x509_crt_parse (&srvcert, (const unsigned char*) serv_cert, serv_cert_len);
-	if (ret != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  !  mbedtls_x509_crt_parse returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-	ret =  mbedtls_pk_parse_key (&pkey, (const unsigned char *) serv_key, serv_key_len, NULL, 0);
-	if ( ret != 0 )
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  !  mbedtls_pk_parse_key returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	// 2. Setup the listening TCP socket
-	itoa (pTlsServer->port, port_buf, 10);
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsServerThread: Bind on https://localhost:%s/ ... ", port_buf);
-#endif
-	if ((ret = mbedtls_net_bind (&listen_fd, NULL, port_buf, MBEDTLS_NET_PROTO_TCP)) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_net_bind returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	// 3. Seed the RNG
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsServerThread: Seeding the random number generator... ");
-#endif
-	if ((ret = mbedtls_ctr_drbg_seed (&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen( (char *)pers))) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_ctr_drbg_seed returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	// 4. Setup stuff
-#ifdef DEBUG_TLS_PROC
-	PRINTF("TlsServerThread: Setting up the SSL data.... ");
-#endif
-	if ((ret = mbedtls_ssl_config_defaults (&conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_ssl_config_defaults returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-	mbedtls_ssl_conf_rng (&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-	mbedtls_ssl_conf_ca_chain (&conf, srvcert.next, NULL);
-	if ((ret = mbedtls_ssl_conf_own_cert (&conf, &srvcert, &pkey)) != 0)
-	{
-#ifdef DEBUG_TLS_PROC
-		PRINTF("failed\n  ! mbedtls_ssl_conf_own_cert returned %d\r\n", ret);
-#endif
-		goto exit1;
-	}
-	mbedtls_ssl_conf_read_timeout( &conf, 1000 );
-
-	pTlsContext = TlsContextArray;
-	for (uint8_t i = 0; i < TLS_CONTEXT_MAX; i++)
-	{
-		pTlsContext->number = '1'+i;
-		pTlsContext->sock = &sock_inst[i];
-		pTlsContext->ssl = NULL;
-		if ((ret = mbedtls_ssl_setup (&ssl_inst[i], &conf)) != 0)
-		{
-#ifdef DEBUG_TLS_PROC
-			PRINTF("failed\n  ! mbedtls_ssl_setup returned %d\r\n", ret);
-#endif
-			goto exit1;
-		}
-		pTlsContext++;
-
-	}
-#ifdef DEBUG_TLS_PROC
-	PRINTF("ok\r\n");
-#endif
-
-	while (1)
-	{
-		pTlsContext = TlsContextArray;
-		uint32_t sslOk = 0;
-		for (uint8_t i = 0; i < TLS_CONTEXT_MAX; i++)
-		{
-			if (pTlsContext->ssl == NULL)
-			{
-				if ((ret = mbedtls_net_accept (&listen_fd, pTlsContext->sock, (void *)&client_adr, sizeof (client_adr), &len_ip)) != 0)
-				{
-#ifdef DEBUG_TLS_PROC
-					PRINTF("failed\n  ! mbedtls_net_accept returned %d\r\n", ret);
-#endif
-					break;
-				}
-				pTlsContext->ssl = &ssl_inst[i];
-				mbedtls_ssl_set_bio (pTlsContext->ssl, (void *)pTlsContext->sock, mbedtls_net_send, NULL, mbedtls_net_recv_timeout);
-				char nameThread[] = {'T','L','S','C','o','n','t','e','x','t','T','a','s','k', pTlsContext->number,'\0'};
-				const osThreadAttr_t tlsContext_attributes = {
-					.name = nameThread,
-					.priority = (osPriority_t) osPriorityNormal,
-					.stack_size = 512 * 10,
-				};
-#ifdef DEBUG_TLS_PROC
-				PRINTF("ok\r\n\r\n");
-				++deb_var;
-				client_port = (
-				(uint16_t)client_adr[4] << 8) + client_adr[5];
-				PRINTF("TlsServerThread: Connection %d to port %d use socket %c\r\n", deb_var, client_port, pTlsContext->number);
-#endif
-				TlsContextTaskHandle[i] = osThreadNew (TlsContext_thread, (void *)pTlsContext, &tlsContext_attributes);
-//					mbedtls_net_free (&listen_fd);
-				sslOk = 1;
-				break;
-			}
-			pTlsContext++;
-		}
-		// if no free ssl - wait
-		if (!sslOk)
-		{
-			osDelay (100);
-		}
-	}
-exit1:
-	for (uint8_t i = 0; i < TLS_CONTEXT_MAX; i++)
-	{
-		mbedtls_net_free (&sock_inst[i]);
-	}
-	mbedtls_net_free (&listen_fd);
-	mbedtls_x509_crt_free (&srvcert);
-	mbedtls_pk_free (&pkey);
-	for (uint8_t i = 0; i < TLS_CONTEXT_MAX; i++)
-	{
-		mbedtls_ssl_free (&ssl_inst[i]);
-	}
-	mbedtls_ssl_config_free (&conf);
-	mbedtls_ctr_drbg_free (&ctr_drbg);
-	mbedtls_entropy_free (&entropy);
-	TlsServerTaskHandle = NULL;
-	osThreadExit ();
-}
-
-
-static osThreadId_t StartTlsServer	(
-							void *arg
-							)
-{
-	uint32_t app = *(uint32_t *)arg;
-	net_struct_t *pTlsServer = &TlsServerStruct;
-
-	switch (app)
-	{
-		case HTTPS_PROT:
-			// Set local port
-			pTlsServer->port = HTTPS_SERVER_PORT;
-			pTlsServer->application = HttpServer;
-			break;
-		default:
-			return NULL;
-	}
-//	context_struct_t *pTlsContext = TlsContextStruct;
-//	for (uint8_t i = 0; i < TLS_CONTEXT_MAX; i++)
-//	{
-//		pTlsContext->number = '1'+i;
-//		pTlsContext->ssl = NULL;
-//		pTlsContext++;
-//	}
-    const osThreadAttr_t tlsTask_attributes = {
-        .name = "TlsServerTask",
-        .stack_size = 512 * 10,
-        .priority = (osPriority_t) osPriorityNormal,
-    };
-	return osThreadNew(TlsServer_thread, (void *)pTlsServer, &tlsTask_attributes);
-}
-
-#endif
-
-
-void RunAppTlsServer 	(
-						uint32_t app
+static void *tls_calloc (
+						size_t n,
+						size_t sz
 						)
 {
-	TlsServerTaskHandle = StartTlsServer ((void *)&app);
+	size_t total = n * sz;
+	void *p = pvPortMalloc (total);
+	if (!p)
+		return NULL;
+	memset (p, 0, total);
+	return p;
 }
+
+
+static void tls_free (void *p)
+{
+	vPortFree (p);
+}
+*/
+
+//void tls_memory_init (void)
+//{
+//	mbedtls_platform_set_calloc_free (tls_calloc, tls_free);
+//}
+
+
+static err_t my_netbuf_pull	(
+							client_args_t *client,
+							u16_t len
+							)
+{
+	if (client->rx_buf == NULL || client->rx_len == 0) return ERR_ARG;
+
+	if (client->rx_len > len)
+	{
+		client->rx_ptr += len;
+		client->rx_len -= len;
+		return ERR_OK;
+	}
+	else
+	{
+		netbuf_delete(client->rx_buf);
+		client->rx_buf = NULL;
+		client->rx_ptr = NULL;
+		client->rx_len = 0;
+		return ERR_OK;
+	}
+}
+
+
+static int netconn_send_cb	(
+							void *ctx,
+							const unsigned char *buf,
+							size_t len
+							)
+{
+    client_args_t *client = (client_args_t *)ctx;
+    err_t err = netconn_write(client->conn, buf, len, NETCONN_COPY);
+    return (err == ERR_OK) ? (int)len : MBEDTLS_ERR_NET_SEND_FAILED;
+}
+
+
+static int netconn_recv_timeout_cb	(
+									void *ctx,
+									unsigned char *buf,
+									size_t len,
+									uint32_t timeout
+									)
+{
+    client_args_t *client = (client_args_t *)ctx;
+    void *data;
+    u16_t data_len;
+    err_t err;
+
+    if (client->rx_buf == NULL)
+    {
+        netconn_set_recvtimeout(client->conn, timeout);
+        err = netconn_recv(client->conn, &client->rx_buf);
+        if (err != ERR_OK)
+		{
+#ifdef DEBUG_TLS_NETCONN_RCV
+        	PRINTF("LWIP receive failed: err = %d\r\n", err);
+#endif
+        	return MBEDTLS_ERR_NET_RECV_FAILED;
+		}
+
+        netbuf_data(client->rx_buf, &data, &data_len);
+        client->rx_ptr = (uint8_t *)data;
+        client->rx_len = data_len;
+    }
+
+    if (client->rx_len == 0) return MBEDTLS_ERR_NET_RECV_FAILED;
+
+    size_t to_copy = (client->rx_len > len) ? len : client->rx_len;
+    memcpy(buf, client->rx_ptr, to_copy);
+    my_netbuf_pull(client, to_copy);
+
+#ifdef DEBUG_TLS_NETCONN_RCV
+    PRINTF("LWIP receive got: bytes = %d\r\n", to_copy);
+#endif
+    return (int)to_copy;
+}
+
+
+static void tls_free_pTcpConn	(
+								conn_struct_t *pTcpConn,
+								const char* tag
+								)
+{
+    if (pTcpConn == NULL) return;
+#ifdef DEBUG_TLS_FREE
+    PRINTF("%s %ld: Freeing conn_struct at %p\r\n", tag, pTcpConn->number, pTcpConn);
+#endif
+    if (pTcpConn->conn != NULL)
+    {
+#ifdef DEBUG_TLS_FREE
+		PRINTF("%s %ld: Closing and deleting netconn %p\r\n", tag, pTcpConn->number, pTcpConn->conn);
+#endif
+		err_t err = netconn_close(pTcpConn->conn);
+		if (err != ERR_OK)
+		{
+#ifdef DEBUG_TLS_FREE
+			PRINTF("%s %ld: netconn_close returned %d\r\n", tag, pTcpConn->number, err);
+#endif
+		}
+		err = netconn_delete(pTcpConn->conn);
+		if (err != ERR_OK)
+		{
+#ifdef DEBUG_TLS_FREE
+			PRINTF("%s %ld: netconn_delete returned %d\r\n", tag, pTcpConn->number, err);
+#endif
+		}
+        pTcpConn->conn = NULL;
+    }
+    vPortFree(pTcpConn);
+}
+
+
+void TlsServerContext_thread(
+							void *arg
+							)
+{
+	conn_struct_t *pTcpConn = (conn_struct_t *)arg;
+    int ret = 0;
+    const char *tag = "TlsContextThread";
+
+#ifdef DEBUG_TLS_SERV
+//	PRINTF("%s %ld: Connection %p in conn_struct_t %p with remote host: %s:%d\r\n",
+//			tag,
+//			pTcpConn->number,
+//			pTcpConn->conn,
+//			pTcpConn,
+//			ipaddr_ntoa ((ip_addr_t)(pTcpConn->conn->pcb.tcp->remote_ip)),
+//			pTcpConn->conn->pcb.tcp->remote_port);
+	PRINTF("%s %ld: Connection %p in conn_struct_t %p with remote host: %d.%d.%d.%d: %d\r\n",
+			tag,
+			pTcpConn->number,
+			pTcpConn->conn,
+			pTcpConn,
+			(u8_t)(pTcpConn->conn->pcb.tcp->remote_ip.addr),
+			(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>8),
+			(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>16),
+			(u8_t)((pTcpConn->conn->pcb.tcp->remote_ip.addr)>>24),
+			(u16_t)(pTcpConn->conn->pcb.tcp->remote_port));
+#endif
+
+	client_args_t client_struct;
+	client_struct.conn = pTcpConn->conn;
+	client_struct.rx_buf = NULL;
+	client_struct.rx_ptr = NULL;
+	client_struct.rx_len = 0;
+
+//	tls_memory_init();
+//	mbedtls_platform_set_calloc_free (tls_calloc, tls_free);
+
+	mbedtls_ssl_config conf;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_entropy_context entropy;
+    mbedtls_x509_crt cert;
+    mbedtls_pk_context key;
+
+    mbedtls_ssl_config_init(&conf);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_x509_crt_init(&cert);
+    mbedtls_pk_init(&key);
+
+    const char *pers = "ssl_server";
+	// 1. Load the certificates and private RSA key
+#ifdef DEBUG_TLS_SERV
+	PRINTF("%s %ld: Loading the certificate ... \r\n", tag, pTcpConn->number);
+#endif
+	ret = mbedtls_x509_crt_parse (&cert, (const unsigned char*) serv_cert, serv_cert_len);
+	if (ret != 0)
+	{
+#ifdef DEBUG_TLS_SERV
+		PRINTF("...%s %ld: mbedtls_x509_crt_parse is failed\n  ! returned %d\r\n", tag, pTcpConn->number, ret);
+#endif
+		goto cleanup;
+	}
+	ret =  mbedtls_pk_parse_key (&key, (const unsigned char *) serv_key, serv_key_len, NULL, 0);
+	if ( ret != 0 )
+	{
+#ifdef DEBUG_TLS_SERV
+		PRINTF("...%s %ld: mbedtls_pk_parse_key is failed\n ! returned %d\r\n", tag, pTcpConn->number, ret);
+#endif
+		goto cleanup;
+	}
+#ifdef DEBUG_TLS_SERV
+	PRINTF("...%s %ld: certificate loading is ok\r\n", tag, pTcpConn->number);
+#endif
+
+	// 3. Seed the RNG
+#ifdef DEBUG_TLS_SERV
+	PRINTF("%s %ld: Seeding the random number generator...\r\n", tag, pTcpConn->number);
+#endif
+	if ((ret = mbedtls_ctr_drbg_seed (&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen( (char *)pers))) != 0)
+	{
+#ifdef DEBUG_TLS_SERV
+		PRINTF("...%s %ld: mbedtls_ctr_drbg_seed is failed\n ! returned %d\r\n", tag, pTcpConn->number, ret);
+#endif
+		goto cleanup;
+	}
+#ifdef DEBUG_TLS_SERV
+	PRINTF("...%s %ld: RNG seeding is ok\r\n", tag, pTcpConn->number);
+#endif
+
+	// 4. Setup stuff
+#ifdef DEBUG_TLS_SERV
+	PRINTF("%s %ld: Setting up the config data...\r\n", tag, pTcpConn->number);
+#endif
+	if ((ret = mbedtls_ssl_config_defaults (&conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0)
+	{
+#ifdef DEBUG_TLS_SERV
+		PRINTF("...%s %ld: mbedtls_ssl_config_defaults failed\n  ! returned %d\r\n", tag, pTcpConn->number, ret);
+#endif
+		goto cleanup;
+	}
+	mbedtls_ssl_conf_rng (&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
+	mbedtls_ssl_conf_ca_chain (&conf, srvcert.next, NULL);
+	if ((ret = mbedtls_ssl_conf_own_cert (&conf, &cert, &key)) != 0)
+	{
+#ifdef DEBUG_TLS_SERV
+		PRINTF("...%s %ld: mbedtls_ssl_conf_own_cert failed\n  ! returned %d\r\n", tag, pTcpConn->number, ret);
+#endif
+		goto cleanup;
+	}
+    mbedtls_ssl_conf_read_timeout (&conf, 1000);
+#ifdef DEBUG_TLS_SERV
+	PRINTF("...%s %ld: Config setting is ok\r\n", tag, pTcpConn->number);
+#endif
+
+	// 5. Setup ssl
+#ifdef DEBUG_TLS_SERV
+	PRINTF("...%s %ld: Setting up the SSL data...\r\n", tag, pTcpConn->number);
+#endif
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_init(&ssl);
+	if ((ret = mbedtls_ssl_setup (&ssl, &conf)) != 0)
+	{
+#ifdef DEBUG_TLS_SERV
+		PRINTF("...%s %ld: mbedtls_ssl_setup failed\n  ! returned %d\r\n", tag, pTcpConn->number, ret);
+#endif
+		goto cleanup;
+	}
+    mbedtls_ssl_set_bio (&ssl, &client_struct, netconn_send_cb, NULL, netconn_recv_timeout_cb);
+#ifdef DEBUG_TLS_SERV
+	PRINTF("...%s %ld: ssl setting is ok\r\n", tag, pTcpConn->number);
+#endif
+
+    //6. Handshake
+#ifdef DEBUG_TLS_SERV
+	PRINTF("%s %ld: Performing the SSL/TLS handshake...\r\n", tag, pTcpConn->number);
+#endif
+    if ((ret = mbedtls_ssl_handshake(&ssl)) != 0)
+    {
+#ifdef DEBUG_TLS_SERV
+		PRINTF("...%s %ld: mbedtls_ssl_handshake is failed\n  ! returned %d\r\n", tag, pTcpConn->number, ret);
+#endif
+		goto cleanup;
+    }
+#ifdef DEBUG_TLS_SERV
+	PRINTF("...%s %ld: TLS handshake is ok\r\n", tag, pTcpConn->number);
+#endif
+
+    //7. Read-write data with client
+#define	R_BUF_SIZE	1024
+
+	data_struct_t RW_data = {NULL};
+	int len;
+	char rbuf[R_BUF_SIZE];
+	RW_data.r_data = rbuf;
+
+	len = mbedtls_ssl_read(&ssl, (unsigned char *)rbuf, R_BUF_SIZE-1);
+	if (len > 0)
+	{
+		rbuf[len] = 0;
+
+#ifdef DEBUG_TLS_SERV
+		PRINTF("%s %ld: Received data: %d byte\r\n", tag, pTcpConn->number, len);
+#endif
+
+		HttpServer ((void *)&RW_data);
+		mbedtls_ssl_write(&ssl, (const unsigned char *) RW_data.w_data, (size_t)strlen (RW_data.w_data));
+		if (RW_data.w_data != NULL)
+		{
+			vPortFree (RW_data.w_data);
+		}
+    }
+
+    //8. Finishing
+cleanup:
+	// Завершення
+	mbedtls_ssl_close_notify(&ssl);
+	mbedtls_ssl_free(&ssl);
+
+	// Free
+	mbedtls_ssl_config_free(&conf);
+	mbedtls_x509_crt_free(&cert);
+	mbedtls_pk_free(&key);
+	mbedtls_ctr_drbg_free(&ctr_drbg);
+	mbedtls_entropy_free(&entropy);
+
+	tls_free_pTcpConn (pTcpConn, tag);
+
+	osSemaphoreRelease (sid_TcpConnCount);
+	osThreadExit ();
+}
+
+
+// ---------------------------------  TLS Client  ----------------------------------------
+const char 						ca_cert[] = CA_SERT;
+
+
+void TlsClientContext 	(
+						void *arg
+//					,	struct netconn *conn
+						)
+{
+	net_struct_t *pTcpClient = (net_struct_t *)arg;
+
+#ifdef DEBUG_TCP_CLI
+	const char *tag = "TlsClientContext";
+#endif
+	client_args_t context_struct;
+	context_struct.conn = pTcpClient->conn;
+	context_struct.rx_buf = NULL;
+	context_struct.rx_ptr = NULL;
+	context_struct.rx_len = 0;
+
+	mbedtls_ssl_config conf;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_entropy_context entropy;
+    mbedtls_x509_crt cert;
+
+    int ret = 0;
+    const char *pers = "ssl_client";
+
+    mbedtls_ssl_config_init(&conf);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_entropy_init(&entropy);
+    mbedtls_x509_crt_init(&cert);
+
+    // 1. Seed the RNG
+#ifdef DEBUG_TLS_CLI
+	PRINTF("%s: Seeding the random number generator...\r\n", tag);
+#endif
+	if ((ret = mbedtls_ctr_drbg_seed (&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen( (char *)pers))) != 0)
+	{
+#ifdef DEBUG_TLS_CLI
+		PRINTF("...%s: mbedtls_ctr_drbg_seed is failed\n ! returned %d\r\n", tag, ret);
+#endif
+		goto cleanup;
+	}
+#ifdef DEBUG_TLS_CLI
+	PRINTF("...%s: RNG seeding is ok\r\n", tag);
+#endif
+
+	// 2. Setup stuff
+#ifdef DEBUG_TLS_CLI
+	PRINTF("%s: Setting up the config data...\r\n", tag);
+#endif
+	if ((ret = mbedtls_ssl_config_defaults (&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0)
+	{
+#ifdef DEBUG_TLS_CLI
+		PRINTF("...%s: mbedtls_ssl_config_defaults failed\n  ! returned %d\r\n", tag, ret);
+#endif
+		goto cleanup;
+	}
+#ifdef DEBUG_TLS_CLI
+	PRINTF("...%s: config data setting is ok\r\n", tag);
+#endif
+
+//	mbedtls_ssl_conf_ca_chain (&conf, srvcert.next, NULL);
+//	if ((ret = mbedtls_ssl_conf_own_cert (&conf, &cert, &key)) != 0)
+//	{
+//#ifdef DEBUG_TLS_CLI
+//		PRINTF("...%s: mbedtls_ssl_conf_own_cert failed\n  ! returned %d\r\n", tag, ret);
+//#endif
+//		goto cleanup;
+//	}
+
+	// 3. Load the certificates and private RSA key
+#ifdef DEBUG_TLS_CLI
+	PRINTF("%s: Loading the certificate ... \r\n", tag);
+#endif
+	ret = mbedtls_x509_crt_parse (&cert, (const unsigned char*) ca_cert, sizeof (ca_cert));
+	if (ret != 0)
+	{
+#ifdef DEBUG_TLS_CLI
+		PRINTF("...%s: mbedtls_x509_crt_parse is failed\n  ! returned %d\r\n", tag, ret);
+#endif
+		goto cleanup;
+	}
+    mbedtls_ssl_conf_ca_chain( &conf, &cert, NULL );
+    mbedtls_ssl_conf_authmode( &conf, MBEDTLS_SSL_VERIFY_REQUIRED );
+
+#ifdef DEBUG_TLS_CLI
+	PRINTF("...%s: CA loading is ok\r\n", tag);
+#endif
+
+	// 4. Config
+	mbedtls_ssl_conf_rng (&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
+    mbedtls_ssl_conf_read_timeout (&conf, 1000);
+
+	// 5. Setup ssl
+#ifdef DEBUG_TLS_CLI
+	PRINTF("%s: Setting up the SSL data...\r\n", tag);
+#endif
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_init(&ssl);
+	if ((ret = mbedtls_ssl_setup (&ssl, &conf)) != 0)
+	{
+#ifdef DEBUG_TLS_CLI
+		PRINTF("...%s: mbedtls_ssl_setup failed\n  ! returned %d\r\n", tag, ret);
+#endif
+		goto cleanup;
+	}
+    mbedtls_ssl_set_bio (&ssl, &context_struct, netconn_send_cb, NULL, netconn_recv_timeout_cb);
+#ifdef DEBUG_TLS_CLI
+	PRINTF("...%s: ssl setting is ok\r\n", tag);
+#endif
+
+	//6. Handshake
+#ifdef DEBUG_TLS_CLI
+	PRINTF("%s: Performing the SSL/TLS handshake...\r\n", tag);
+#endif
+    if ((ret = mbedtls_ssl_handshake(&ssl)) != 0)
+    {
+#ifdef DEBUG_TLS_CLI
+		PRINTF("...%s: mbedtls_ssl_handshake is failed\n  ! returned %d\r\n", tag, ret);
+#endif
+		goto cleanup;
+    }
+#ifdef DEBUG_TLS_CLI
+	PRINTF("...%s: TLS handshake is ok\r\n", tag);
+#endif
+
+    //7. Read-write data with client
+	uint16_t len;
+	int cnt=0;
+	data_struct_t RW_data = {NULL};
+	char wbuf[R_BUF_SIZE];
+	RW_data.w_data = wbuf;
+
+	while (1)
+	{
+//		pTcpClient->application ((void *)&RW_data);
+		sprintf (RW_data.w_data, "Client send %d\r\n", ++cnt);
+
+		// send the message back to the server
+		ret = mbedtls_ssl_write (&ssl, (const unsigned char *)RW_data.w_data, (size_t)strlen (RW_data.w_data));
+		if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+		{
+#ifdef DEBUG_TCP_CLI
+			PRINTF ("%s: Write error=%d\r\n", tag, ret);
+#endif
+			break;
+		}
+		// receive the data from the server
+		len = mbedtls_ssl_read (&ssl, (unsigned char *)&RW_data.r_data, R_BUF_SIZE-1);
+		if (len > 0)
+		{
+			*(RW_data.r_data + len) = 0;
+#ifdef DEBUG_TLS_CLI
+		PRINTF("%s: Received %d bytes from server: %s\r\n", tag, len, RW_data.r_data);
+#endif
+	    }
+		else if (len == MBEDTLS_ERR_SSL_TIMEOUT)
+		{
+#ifdef DEBUG_TLS_CLI
+			PRINTF ("%s: Receive timeout\r\n\n", tag);
+#endif
+		}
+		else
+		{
+#ifdef DEBUG_TLS_CLI
+			PRINTF ("%s: Receive error=%d\r\n\n", tag, len);
+#endif
+//			// smtp_status <- 0
+//			pTcpClient->application ((void *)&RW_data);
+			break;
+		}
+		osDelay (1000);
+	}
+
+cleanup:
+	// Завершення
+	if (context_struct.rx_buf)
+		netbuf_delete (context_struct.rx_buf);
+	mbedtls_ssl_close_notify(&ssl);
+	mbedtls_ssl_free(&ssl);
+
+	// Free
+	mbedtls_ssl_config_free(&conf);
+	mbedtls_x509_crt_free(&cert);
+//	mbedtls_pk_free(&key);
+	mbedtls_ctr_drbg_free(&ctr_drbg);
+	mbedtls_entropy_free(&entropy);
+
+	return;
+}
+
 

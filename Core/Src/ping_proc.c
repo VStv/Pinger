@@ -30,7 +30,7 @@ extern char 				*pp;
 
 
 
-extern void RunAppClient (uint32_t);
+extern void RunAppTcpClient (uint16_t);
 
 
 
@@ -360,7 +360,7 @@ static void StartSignal (void)
 	// send e-mail
 	if (email_is_OK)
 	{
-		RunAppClient (SMTP_PROT);
+		RunAppTcpClient (SMTP_PORT);
 	}
 
 	// send telegram message: tg_send_message ()
